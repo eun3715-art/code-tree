@@ -1,510 +1,137 @@
-#include<iostream>
-#include<cstdio>
-#include<queue>
-#include<set>
-#include<vector>
-
-//////////////////////////////////////////////
-
+#include <cstdio>
+#include <vector>
+#include <queue>
+#include <tuple>
 using namespace std;
-//////////////////////////////////////////////
 
 int N;
-int r,c,d;
+vector<vector<int>> grid;
+vector<vector<bool>> visited;
 
-int board[60][60];
-int visited[60][60];
-int dist[60][60];
+// 반시계 방향: 상(0), 좌(1), 하(2), 우(3)
+// 좌회전 = +1, 우회전 = -1, 180도 = +2 (mod 4)
+const int dr[] = {-1, 0, 1, 0};
+const int dc[] = {0, -1, 0, 1};
 
-int sea_count;
-
-//좌하우상
-int dr[4] = {0,1,0,-1};
-int dc[4] = {-1,0,1,0};
-
-vector<pair<int,int>> v;
-
-pair<int,int> next_sea;
-
-//////////////////////////////////////////////
-
-/*
-0. 
-전역에 r,c,d 선언해놓고 매번 업뎃하기.
-함수에서는 한 라운드를 구성하고 메인해서 다 도달할떄까지 while 돌리고 그때의 r,c로 담아놓자
-처음에 바다 개수 받아놓고 방문할떄마다 카운트 하나씩 늘리자 -> 종료 조건
-
-1. 인접 탐험
-직진 - 좌 - 우 - 180
-방문햇으면 visited에 1로 바꾸기
-
-2. 가장 가까운 바다
-bfs로 dist 배열 생성하고 가장 작은 값도 리턴 -> 암초는 못지나가고 이미 방문한 건 상관없음
-그 작은 값에 해당하는 칸을 dist 이중 포문 돌면서 set에 행, 열 순으로 저장하고 set 리턴
-리턴받은 set 맨 앞에 꺼 추출
-좌하우상 순서로 dist 하나 줄어드는 곳으로 먼저 택해지는 곳으로 점점 이동-> 이동할떄 좌표랑 d같이 갱신
-
-*/
-//////////////////////////////////////////////
-int inrange(int r1, int c1)
-{
-    return (r1>=1 &&r1<=N && c1>=1 && c1<=N);
+// (r, c)가 격자 범위 내인지 확인합니다.
+bool in_range(int r, int c) {
+    return 0 <= r && r < N && 0 <= c && c < N;
 }
 
-int can_move(int r1, int c1)
-{
-    if(!inrange(r1,c1))
-    {
-        return 0;
-    }
-
-    if(visited[r1][c1]==1 || board[r1][c1]==1)
-    {
-        return 0;
-    }
-
-    return 1;
-}
-
-int move_straight()
-{
-    int newr, newc;
-
-    if(d==1)
-    {
-        newr = r + dr[3];
-        newc = c + dc[3];
-    }
-
-    else if(d==2)
-    {
-        newr = r + dr[1];
-        newc = c + dc[1];
-    }
-
-    else if(d==3)
-    {
-        newr = r + dr[0];
-        newc = c + dc[0];
-    }
-
-    else
-    {
-        newr = r + dr[2];
-        newc = c + dc[2];
-    }
-
-    if(!can_move(newr,newc))
-    {
-        return 0;
-    }
-
-    r=newr;
-    c=newc;
-
-    return 1;
-}
-
-int move_left()
-{
-    int newr, newc, newd;
-
-    if(d==1)
-    {
-        newr = r + dr[0];
-        newc = c + dc[0];
-        newd=3;
-    }
-
-    else if(d==2)
-    {
-        newr = r + dr[2];
-        newc = c + dc[2];
-        newd=4;
-    }
-
-    else if(d==3)
-    {
-        newr = r + dr[1];
-        newc = c + dc[1];
-        newd=2;
-    }
-
-    else
-    {
-        newr = r + dr[3];
-        newc = c + dc[3];
-        newd=1;
-    }
-
-    if(!can_move(newr,newc))
-    {
-        return 0;
-    }
-
-    r=newr;
-    c=newc;
-    d=newd;
-
-    return 1;
-}
-
-int move_right()
-{
-    int newr, newc, newd;
-
-    if(d==1)
-    {
-        newr = r + dr[2];
-        newc = c + dc[2];
-        newd=4;
-    }
-
-    else if(d==2)
-    {
-        newr = r + dr[0];
-        newc = c + dc[0];
-        newd=3;
-    }
-
-    else if(d==3)
-    {
-        newr = r + dr[3];
-        newc = c + dc[3];
-        newd=1;
-    }
-
-    else
-    {
-        newr = r + dr[1];
-        newc = c + dc[1];
-        newd=2;
-    }
-
-    if(!can_move(newr,newc))
-    {
-        return 0;
-    }
-
-    r=newr;
-    c=newc;
-    d=newd;
-
-    return 1;
-}
-
-int move_180()
-{
-    int newr, newc, newd;
-
-    if(d==1)
-    {
-        newr = r + dr[1];
-        newc = c + dc[1];
-        newd=2;
-    }
-
-    else if(d==2)
-    {
-        newr = r + dr[3];
-        newc = c + dc[3];
-        newd=1;
-    }
-
-    else if(d==3)
-    {
-        newr = r + dr[2];
-        newc = c + dc[2];
-        newd=4;
-    }
-
-    else
-    {
-        newr = r + dr[0];
-        newc = c + dc[0];
-        newd=3;
-    }
-
-    if(!can_move(newr,newc))
-    {
-        return 0;
-    }
-
-    r=newr;
-    c=newc;
-    d=newd;
-
-    return 1;
-}
-
-void step1()
-{   
-    if(move_straight()==1 || move_left()==1 || move_right()==1 || move_180()==1)
-    {
-        visited[r][c]=1;
-        sea_count--;
-        v.push_back({r,c});
-
-        step1();
-    }
-
-    return;
-}
-
-
-void reset_dist()
-{
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            dist[i][j]=-1;
-        }
-    }
-}
-
-int cal_dist()
-{
-    reset_dist();
-
-    queue<pair<int,int>> q;
-
-    dist[r][c]=0;
-
-    q.push({r,c});
-
-    int min_dist=100000;
-
-    while(!q.empty())
-    {   
-        pair<int,int> p = q.front();
-
+// (sr, sc)에서 출발하는 BFS를 수행하여
+// 모든 바다 칸까지의 최단 거리를 반환합니다.
+// 도달 불가능한 칸은 -1로 표시합니다.
+vector<vector<int>> bfs(int sr, int sc) {
+    vector<vector<int>> dist(N, vector<int>(N, -1));
+    queue<pair<int, int>> q;
+    dist[sr][sc] = 0;
+    q.push({sr, sc});
+    while (!q.empty()) {
+        auto [r, c] = q.front();
         q.pop();
-
-        for(int i=0; i<4; i++)
-        {
-            int newr = p.first + dr[i];
-            int newc = p.second + dc[i];
-
-            if(!inrange(newr,newc))
-            {
-                continue;
+        for (int i = 0; i < 4; i++) {
+            int nr = r + dr[i], nc = c + dc[i];
+            if (in_range(nr, nc) && grid[nr][nc] == 0 && dist[nr][nc] == -1) {
+                dist[nr][nc] = dist[r][c] + 1;
+                q.push({nr, nc});
             }
-
-            if(dist[newr][newc]!=-1 || board[newr][newc]==1)
-            {
-                continue;
-            }
-
-            dist[newr][newc] = dist[p.first][p.second] + 1;
-
-            if(visited[newr][newc]==0 && board[newr][newc]==0)
-            {
-                min_dist = min(min_dist, dist[newr][newc]);
-            }
-
-            q.push({newr, newc});
         }
     }
-
-    return min_dist;
+    return dist;
 }
 
-void can_sea()
-{
-    int min_dist = cal_dist();
-
-    set<pair<int,int>> s;
-
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            if(dist[i][j]==min_dist && visited[i][j]==0 && board[i][j]==0)
-            {
-                s.insert({i,j});
-            }
-        }
+// 1단계: 현재 위치와 방향에서 우선순위에 따라
+// 이동할 다음 칸을 반환합니다.
+// 이동 가능한 칸이 없으면 (-1, -1, -1)을 반환합니다.
+tuple<int, int, int> get_next(int r, int c, int d) {
+    for (int delta : {0, 1, -1, 2}) {
+        int nd = (d + delta + 4) % 4;
+        int nr = r + dr[nd], nc = c + dc[nd];
+        if (in_range(nr, nc) && grid[nr][nc] == 0 && !visited[nr][nc])
+            return {nr, nc, nd};
     }
-    pair<int,int> p = *s.begin();
-
-    next_sea.first = p.first;
-    next_sea.second = p.second;
+    return {-1, -1, -1};
 }
 
-void cal_dist_2()
-{
-    reset_dist();
+int main() {
+    int r, c, d;
+    scanf("%d %d %d %d", &N, &r, &c, &d);
+    r--; c--; d--;
 
-    queue<pair<int,int>> q;
+    // 입력 방향을 내부 표현으로 변환합니다.
+    // 입력(0-indexed): 0=상, 1=하, 2=좌, 3=우
+    // 내부(반시계):    0=상, 1=좌, 2=하, 3=우
+    const int dir_map[] = {0, 2, 1, 3};
+    d = dir_map[d];
 
-    dist[next_sea.first][next_sea.second]=0;
+    grid.assign(N, vector<int>(N));
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++)
+            scanf("%d", &grid[i][j]);
 
-    q.push({next_sea.first, next_sea.second});
+    visited.assign(N, vector<bool>(N, false));
 
-    while(!q.empty())
-    {
-        pair<int,int> p = q.front();
+    // 바다 칸의 총 개수를 셉니다.
+    int total = 0;
+    for (int i = 0; i < N; i++)
+        for (int j = 0; j < N; j++)
+            if (grid[i][j] == 0) total++;
 
-        q.pop();
+    // 시작 위치를 방문 처리하고 출력합니다.
+    visited[r][c] = true;
+    printf("%d %d\n", r + 1, c + 1);
+    int cnt = 1;
 
-        for(int i=0; i<4; i++)
-        {
-            int newr = p.first + dr[i];
-            int newc = p.second + dc[i];
+    while (cnt < total) {
+        // 1단계: 인접 탐험
+        // 우선순위에 따라 이동 가능한 칸이 없을 때까지 반복합니다.
+        while (true) {
+            auto [nr, nc, nd] = get_next(r, c, d);
+            if (nr == -1) break;
+            r = nr; c = nc; d = nd;
+            visited[r][c] = true;
+            cnt++;
+            printf("%d %d\n", r + 1, c + 1);
+        }
 
-            if(!inrange(newr,newc))
-            {
-                continue;
+        if (cnt >= total) break;
+
+        // 2단계: 가장 가까운 미방문 바다 찾기
+        // 현재 위치에서 BFS를 수행하여 거리맵을 구합니다.
+        auto dist_from = bfs(r, c);
+
+        // 미방문 바다 칸 중 최소 거리인 칸을 선택합니다.
+        // 행-열 순서로 순회하므로 거리만 비교하면 됩니다.
+        int tr = -1, tc = -1, min_dist = -1;
+        for (int i = 0; i < N; i++)
+            for (int j = 0; j < N; j++) {
+                if (grid[i][j] != 0 || visited[i][j] || dist_from[i][j] == -1) continue;
+                if (min_dist == -1 || dist_from[i][j] < min_dist) {
+                    tr = i; tc = j; min_dist = dist_from[i][j];
+                }
             }
 
-            if(dist[newr][newc]!=-1 || board[newr][newc]==1)
-            {
-                continue;
-            }
+        // 목표 칸에서 BFS를 수행하여
+        // 경로 추적에 필요한 거리맵을 구합니다.
+        auto dist_to = bfs(tr, tc);
 
-            dist[newr][newc] = dist[p.first][p.second] + 1;
-
-            q.push({newr, newc});
-        }
-    }
-}
-
-//상하좌우
-
-//좌하우상
-int d_update[4] = {3,2,4,1};
-
-void step2()
-{
-    can_sea();
-    cal_dist_2();
-
-    while(r!=next_sea.first || c!=next_sea.second)
-    {
-        for(int i=0; i<4; i++)
-        {
-            int newr = r + dr[i];
-            int newc = c + dc[i];
-            int newd = d_update[i];
-
-            if(!inrange(newr, newc))
-            {
-                continue;
-            }
-
-            if(board[newr][newc]==1)
-            {
-                continue;
-            }
-
-            if(dist[newr][newc] == dist[r][c]-1)
-            {
-                r = newr;
-                c = newc;
-                d = newd;
-
-                break;
+        // 매 단계 목표까지의 거리가 1 줄어드는 방향 중
+        // 좌, 하, 우, 상 순서로 우선순위가 높은 쪽을 선택합니다.
+        while (r != tr || c != tc) {
+            for (int dir : {1, 2, 3, 0}) {
+                int nr = r + dr[dir], nc = c + dc[dir];
+                if (in_range(nr, nc) && grid[nr][nc] == 0 && dist_to[nr][nc] == dist_to[r][c] - 1) {
+                    r = nr; c = nc; d = dir;
+                    break;
+                }
             }
         }
+
+        // 목표 칸을 방문 처리하고 출력합니다.
+        visited[r][c] = true;
+        cnt++;
+        printf("%d %d\n", r + 1, c + 1);
     }
 
-    visited[r][c]=1;
-    sea_count--;
-    v.push_back({r,c});
-}
-
-
-//////////////////////////////////////////////
-void cout_visited()
-{
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            cout << visited[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "\n\n";
-}
-
-void cout_dist()
-{
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            cout << dist[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "\n\n";
-}
-
-//////////////////////////////////////////////
-
-int main(int argc, char** argv)
-{
-    freopen("input.txt", "r", stdin);
-
-    int n;
-
-    cin >> N >> r >> c >> d;
-
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            cin >> n;
-
-            board[i][j] = n;
-
-            if(n==0)
-            {
-                sea_count++;
-            }
-        }
-    }
-
-
-
-    ///////////////////////////////////////////////
-
-
-    //처음 위치에 잇는 고래 -> 이동한걸로 쳐야함
-    sea_count--;
-    visited[r][c]=1;
-    v.push_back({r,c});
-
-    ////////////////////////////////////////
-
-
-    while(1)
-    {
-        step1();
-
-        if(sea_count==0)
-        {
-            break;
-        }
-
-        step2();
-
-        if(sea_count==0)
-        {
-            break;
-        }
-    }
-
-    for(int i=0; i<v.size(); i++)
-    {
-        cout << v[i].first << " " << v[i].second << "\n";
-    }
-
-
-
-//////////////////////////////////////
-
-    return 0;//정상종료시 반드시 0을 리턴해야합니다.
+    return 0;
 }
