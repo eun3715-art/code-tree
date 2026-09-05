@@ -1,262 +1,531 @@
-#include <iostream>
-#include <vector>
-#include <queue>
-#include <algorithm>
-
+#include<iostream>
+#include<cstdio>
+#include<vector>
+#include<queue>
+#include<cmath>
+////////////////////////////////////////////////////////////////
 using namespace std;
+////////////////////////////////////////////////////////////////
+/*
+0. 초기화
+board - 빈공간0, 산호초1, 화석으로 변하면 1로 하자(산호 취급)
+tur_board - 처음에 -1으로 초기화, 아이디 순서대로 그 위치에 저장
+vol_board - 처음에 -1으로 초기화, 열기만 작성(처음에 0)
 
-/////////전역변수////////
+구조체로 거북이, 화산 : 순서대로 관리
+
+1. 바다거북 이동
+step1 - 모든 아이디 for문으로 하나씩 이동 진행
+-> 각 함수:
+1) 최단 경로 dist 업뎃 : 다른 바다거북, 산호, 화석 제외
+2) 목적지 기준으로 최단 경로 없으면 return;, 잇으면 이동하는 함수 호출 -> dist[r][c]이 -1인지 유무로 판단
+3) 우하좌상 으로 -1 되는 방향으로 첫 이동.
+4) 안식처 도착 판단하고 구조체 값 업뎃
+
+2. 압력 증가
+1) 이중 포문 돌면서 -1이 아닌 곳은 +10
+
+
+3. 
+열기 전파
+1)모든 구조체 돌면서 각 P랑 현재 압력 비교해서 분출할 애들 인덱스만 따로 저장
+////////////////////////
+2) 전파 : 모든 구조체 돌면서 각 좌표로 나누기 2한 값 전파(bfs)-> vol_board에 +되는 열기값 ++ -> 산호초 만나거나 그 값이 0이 되는 순간 전파 중지
+
+연쇄 반응 
+1) 아까 분출한 화산 인덱스 제외하고 (현재 마그마)+(보드 열기) >= P를 판단
+-> 해당되는 애들만 인덱스 뽑음 : 인덱스 없을떄까지 while
+2) 위에 만든 전파 함수 실행 
+-> 다시 연쇄
+
+4. 화석화
+turtle 보드 0아닌 곳들의 vol_board 확인해서 20 이상이면 화석
+
+5. vol_board 초기화
+1)vol_board 초기화
+2)아까 뽑은 두 인덱스 들을의 압력 0으로 초기화
+
+
+*/
+////////////////////////////////////////////////////////////////
+//변수선언
+int N, M, K;
+
 int board[30][30];
-int N;
-
-// 0: 현재 없음. 1: 현재 있다. -1: 화석이 됐다
-int cur_turtle[30][30];
-// 모두 0으로 초기화. 화산이 있는 곳만 해당 P로 설정
-int cur_volcano_limit[30][30];
-// 현재까지 찬 압력
-int cur_volcano[30][30];
-// 분출한 화산 true로
-bool bomb_volcano[30][30];
-// 모든 칸의 열기
-int fever[30][30];
-// 목적지로부터의 거리
+int vol_board[30][30];
+int tur_board[30][30];
 int dist[30][30];
 
-// 우하좌상
-int row_vec[4] = {0, 1, 0, -1};
-int col_vec[4] = {1, 0, -1, 0};
-
-struct Turtle {
-    int r, c;
-    bool alive = true;
-    bool arrived = false;
-    int arrival_turn = -1;
-};
-
-/////////////////////
-
-// 열기 전파
-void cal_fever(int r, int c)
+struct Turtle
 {
-    fever[r][c] += cur_volcano_limit[r][c];
+    int r,c,id;
+    int die=0;
+};
+vector<Turtle> T;
 
-    for (int d = 0; d < 4; d++)
+struct Volcano
+{
+    int r,c,p;
+    int press=0;
+    int bomb=0;
+};
+vector<Volcano> V;
+
+int dr[4] = {0,1,0,-1};
+int dc[4] = {1,0,-1,0};
+
+int remain_tur;
+
+int ans[20];
+
+int turn=0;
+
+////////////////////////////////////////////////////////////////
+//함수 제작
+
+void reset_tur_board()
+{
+    for(int i=0; i<N; i++)
     {
-        int heat = cur_volcano_limit[r][c];
-        int row = r, col = c;
-
-        while (true)
+        for(int j=0; j<N; j++)
         {
-            heat /= 2;
-            if (heat == 0) break;
-
-            row += row_vec[d];
-            col += col_vec[d];
-
-            if (row < 1 || row > N || col < 1 || col > N) break;
-            if (board[row][col] == 1) break;
-
-            fever[row][col] += heat;
+            tur_board[i][j]=-1;
         }
     }
 }
 
-// 목적지로부터 BFS로 최단거리 계산
-void bfs_from_goal()
+void reset_vol_board()
 {
-    for(int i = 1; i <= N; i++)
-        for(int j = 1; j <= N; j++)
-            dist[i][j] = -1;
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            vol_board[i][j]=0;
+        }
+    }
+}
 
-    dist[N][N] = 0;
+void reset_dist()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            dist[i][j]=-1;
+        }
+    }
+}
+
+void step0()
+{
+    reset_tur_board();
+    reset_vol_board();
+}
+
+
+int inrange(int r, int c)
+{
+    return (r>=0 && r<=N-1 && c>=0 && c<=N-1);
+}
+
+void cal_dist(int id)
+{
+    reset_dist();
+
+    dist[N-1][N-1]=0;
+
     queue<pair<int,int>> q;
-    q.push({N, N});
+
+    q.push({N-1, N-1});
 
     while(!q.empty())
     {
-        pair<int,int> cur = q.front();
-        int r = cur.first;
-        int c = cur.second;
+        pair<int,int> p = q.front();
         q.pop();
 
-        for(int i = 0; i < 4; i++)
+        for(int i=0; i<4; i++)
         {
-            int new_r = r + row_vec[i];
-            int new_c = c + col_vec[i];
+            int newr = p.first + dr[i];
+            int newc = p.second + dc[i];
 
-            if(new_r < 1 || new_r > N || new_c < 1 || new_c > N) continue;
-            if(board[new_r][new_c] == 1) continue;
-            if(dist[new_r][new_c] != -1) continue;
-            if(cur_turtle[new_r][new_c] != 0) continue;
+            if(!inrange(newr, newc))
+            {
+                continue;
+            }
 
-            dist[new_r][new_c] = dist[r][c] + 1;
-            q.push({new_r, new_c});
+            if(dist[newr][newc]!=-1 || (tur_board[newr][newc]!=-1 && tur_board[newr][newc]!=id)  || board[newr][newc]==1 || board[newr][newc]==2)
+            {
+                continue;
+            }
+
+            dist[newr][newc]=dist[p.first][p.second]+1;
+            q.push({newr,newc});
         }
     }
 }
 
-// 최단거리 기준으로 거북이 한 칸 이동
-void move_turtle(int &r, int &c)
+pair<int,int> move_one(int r, int c)
 {
-    for(int i = 0; i < 4; i++)
+    for(int i=0; i<4; i++)
     {
-        int newR = r + row_vec[i];
-        int newC = c + col_vec[i];
+        int newr = r + dr[i];
+        int newc = c + dc[i];
 
-        if(newR < 1 || newR > N || newC < 1 || newC > N) continue;
-        if(board[newR][newC] == 1) continue;
-        if(dist[newR][newC] == -1 || cur_turtle[newR][newC] != 0) continue;
-
-        if(dist[newR][newC] == dist[r][c] - 1)
+        if(!inrange(newr,newc))
         {
-            cur_turtle[r][c] = 0;
-            r = newR;
-            c = newC;
-            cur_turtle[r][c] = 1;
+            continue;
+        }
+
+        if(tur_board[newr][newc]!=-1 || board[newr][newc]==1 || board[newr][newc]==2)
+        {
+            continue;
+        }
+
+        if(dist[newr][newc]==dist[r][c]-1)
+        {
+            r=newr;
+            c=newc;
+
             break;
         }
     }
+
+    return {r, c};
 }
 
-// 화산 압력 증가
-void increase_volcano()
+void move(int id)
 {
-    for(int i = 1; i <= N; i++)
-        for(int j = 1; j <= N; j++)
-        {
-            if(cur_volcano_limit[i][j] == 0) continue;
-            cur_volcano[i][j] += 10;
-        }
-}
+    cal_dist(id);
 
-// 분출 + 연쇄 반응
-void bomb_chain()
-{
-    bool temp = true;
-    while(true)
+    if(dist[T[id].r][T[id].c]==-1)
     {
-        temp = false;
+        return;
+    }
 
-        for(int i = 1; i <= N; i++)
-        {
-            for(int j = 1; j <= N; j++)
-            {
-                if(cur_volcano_limit[i][j] == 0) continue;
-                if(bomb_volcano[i][j]) continue;
+    pair<int,int> p = move_one(T[id].r, T[id].c);
 
-                if(cur_volcano[i][j] + fever[i][j] >= cur_volcano_limit[i][j])
-                {
-                    bomb_volcano[i][j] = true;
-                    cal_fever(i, j);
-                    temp = true;
-                }
-            }
-        }
-        if(!temp) break;
+    tur_board[T[id].r][T[id].c]=-1;
+    T[id].r = p.first;
+    T[id].c = p.second;
+
+    if(T[id].r == N-1 && T[id].c == N-1)
+    {
+        ans[id]=turn;
+        T[id].die=1;
+        remain_tur--;
+        tur_board[T[id].r][T[id].c]=-1;
+    }
+
+    else
+    {
+        tur_board[T[id].r][T[id].c]=id;
     }
 }
 
-// 초기화
-void reset()
+void step1()
 {
-    for(int i = 1; i <= N; i++)
-        for(int j = 1; j <= N; j++)
+    for(int id=0; id<M; id++)
+    {
+        if(T[id].die==1)
         {
-            if(bomb_volcano[i][j]) cur_volcano[i][j] = 0;
-            bomb_volcano[i][j] = false;
-            fever[i][j] = 0;
+            continue;
         }
+        move(id);
+    }
 }
 
-int main()
+
+///////////////////////////////////
+
+void step2()
 {
-    int M, K;
-    int r1, c1, r2, c2, P;
-
-    cin >> N >> M >> K;
-
-    vector<Turtle> turtles(M);
-
-    for(int i = 1; i <= N; i++)
-        for(int j = 1; j <= N; j++)
-            cin >> board[i][j];
-
-    for(int k = 0; k < M; k++)
+    for(int i=0; i<K; i++)
     {
-        cin >> r1 >> c1;
-        r1++; c1++;
-        turtles[k].r = r1;
-        turtles[k].c = c1;
-        cur_turtle[r1][c1] = 1;
+        V[i].press+=10;
     }
+}
 
-    for(int l = 0; l < K; l++)
+/////////////////////////
+
+vector<int> who_first_bomb()
+{
+    vector<int> v;
+
+    for(int i=0; i<K; i++)
     {
-        cin >> r2 >> c2 >> P;
-        r2++; c2++;
-        cur_volcano_limit[r2][c2] = P;
+        if(V[i].press >= V[i].p)
+        {
+            v.push_back(i);
+            vol_board[V[i].r][V[i].c]+=V[i].p;
+            V[i].bomb=1;
+        }
     }
+    return v;
+}
 
-    for (int turn = 1; turn <= 100; turn++)
+void spread_logic(int r, int c, int fever)
+{
+    for(int i=0; i<4; i++)
     {
-        // 1단계: 거북이 이동 (ID 순서대로)
-        for (int i = 0; i < M; i++)
+        int num=1;
+        
+        while(1)
         {
-            if (!turtles[i].alive || turtles[i].arrived) continue;
+            int newr = r + dr[i]*num;
+            int newc = c + dc[i]*num;
+            int new_fever = fever/pow(2,num);
 
-            cur_turtle[turtles[i].r][turtles[i].c] = 0;
-            bfs_from_goal();
-            cur_turtle[turtles[i].r][turtles[i].c] = 1;
-            move_turtle(turtles[i].r, turtles[i].c);
-
-            if (turtles[i].r == N && turtles[i].c == N)
+            if(board[newr][newc]==1 ||  new_fever==0)
             {
-                turtles[i].arrived = true;
-                turtles[i].arrival_turn = turn;
-                cur_turtle[N][N] = 0;
-            }
-        }
-
-        // 2단계: 화산 압력 증가
-        increase_volcano();
-
-        // 3단계: 분출 + 연쇄 반응
-        bomb_chain();
-
-        // 화석 판정
-        for (int i = 0; i < M; i++)
-        {
-            if (turtles[i].alive && !turtles[i].arrived &&
-                fever[turtles[i].r][turtles[i].c] >= 20)
-            {
-                turtles[i].alive = false;
-                cur_turtle[turtles[i].r][turtles[i].c] = -1;
-            }
-        }
-
-        // 4단계: 초기화
-        reset();
-
-        bool all_done = true;
-        for (int i = 0; i < M; i++)
-        {
-            if (turtles[i].alive && !turtles[i].arrived)
-            {
-                all_done = false;
                 break;
             }
+
+            vol_board[newr][newc]+=new_fever;
+
+            num++;
         }
-        if (all_done) break;
     }
+}
 
-    // 출력
-    for (int i = 0; i < M; i++)
+void spread(vector<int> v)
+{
+    for(int i : v)
     {
-        if (turtles[i].arrived)
-            cout << turtles[i].arrival_turn << "\n";
-        else
-            cout << -1 << "\n";
+        spread_logic(V[i].r, V[i].c, V[i].p);
+    }
+}
+
+vector<int> who_chain_bomb()
+{
+    vector<int> v;
+
+    for(int i=0; i<K; i++)
+    {
+        if(V[i].bomb==1)
+        {
+            continue;
+        }
+
+        if(V[i].press + vol_board[V[i].r][V[i].c] >= V[i].p)
+        {
+            v.push_back(i);
+            vol_board[V[i].r][V[i].c]+=V[i].p;
+            V[i].bomb=1;
+        }
+    }
+    return v;
+}
+
+int chain()
+{
+    vector<int> v = who_chain_bomb();
+
+    if(v.empty())
+    {
+        return 0;
     }
 
-    return 0;
+    spread(v);
+
+    return 1;
+}
+
+void step3()
+{   
+    vector<int> v1 = who_first_bomb();
+
+    if(v1.empty())
+    {
+        return;
+    }
+
+    //첫번째 분출되는 애들로 전파 
+    spread(v1);
+
+
+    int n=1;
+
+    while(n==1)
+    {
+        n = chain();
+    }
+}
+
+void step4()
+{
+    for(int i=0; i<M; i++)
+    {
+        if(T[i].die==1)
+        {
+            continue;
+        }
+
+        if(vol_board[T[i].r][T[i].c]>=20)
+        {
+            T[i].die=1;
+            board[T[i].r][T[i].c]=2;
+            remain_tur--;
+            ans[i]=-1;
+            tur_board[T[i].r][T[i].c]=-1;
+        }
+    }
+}
+
+void step5()
+{
+    reset_vol_board();
+
+    for(int i=0; i<K; i++)
+    {
+        if(V[i].bomb==1)
+        {
+            V[i].press=0;
+            V[i].bomb=0;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////
+void cout_dist()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << dist[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_tur_board()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << tur_board[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_vol_board()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << vol_board[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_board()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << board[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_press()
+{
+    for(int i=0; i<K; i++)
+    {
+        cout << V[i].press << "\n";
+    }
+    cout << "\n\n";
+}
+
+////////////////////////////////////////////////////////////////
+
+int main(int argc, char** argv)
+{
+    freopen("input.txt", "r", stdin);
+
+    int r,c,p;
+    int n;
+
+////////////////////////////////////////////////////////////////
+//입력
+
+    cin >> N >> M >> K;
+    T.resize(M);
+    V.resize(K);
+    remain_tur=M;
+    step0();
+
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cin >> n;
+            board[i][j]=n;
+        }
+    }
+
+    for(int i=0; i<M; i++)
+    {
+        cin >> r >> c;
+        T[i].r=r;
+        T[i].c=c;
+        T[i].id=i;
+        tur_board[r][c]=i;
+    }
+
+
+    for(int i=0; i<K; i++)
+    {
+        cin >> r >> c >> p;
+        V[i].r=r;
+        V[i].c=c;
+        V[i].p=p;
+    }
+
+
+////////////////////////////////////////////////////////////////
+//출력
+//move(0);
+//cout << T[0].r <<"\n\n";
+//cout_tur_board();
+
+
+    while(remain_tur!=0 && turn<100)
+    {
+        turn++;
+
+        step1();
+        step2();
+        step3();
+        step4();
+        step5();
+    }
+
+    for(int i=0; i<M; i++)
+    {
+        if(ans[i]==0)
+        {
+            ans[i]=-1;
+        }
+    }
+
+    for(int i=0; i<M; i++)
+    {
+        cout << ans[i]<<"\n";
+    }
+    
+//////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
