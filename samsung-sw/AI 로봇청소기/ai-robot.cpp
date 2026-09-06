@@ -1,264 +1,250 @@
-#include <iostream>
-#include <queue>
-#include <algorithm>
-#include <vector>
-#include <cmath>
-
+#include<iostream>
+#include<cstdio>
+#include<vector>
+#include<set>
+#include<queue>
+#include<tuple>
+////////////////////////////////////////////////////////////////
 using namespace std;
+////////////////////////////////////////////////////////////////
+/*
+0. 
+-청소기 순서대로 구조체 벡터에 위치저장 & 위치 매번 갱신하자
+board : -1 ~ 먼지양
+cleaner_board : 청소기 위치
 
+1. 청소기 이동
+-각 청소기 마다 순서대로 move()를 실행 -> 전부 다느 step1()에서 포문으로 처리
+-move()는 각 현재 상태에 대해서 dist 계산
+-cleaner_board==1 && board==-1  인곳 뛰어 넘으면서 -> min_dist 갱신하면서 행 열 작은 곳이니까 먼저 발견되는 곳이 해당 격자임. -> 따로 안하고 dist 갱신하면서 좌표까지 구하자
+-그 좌표 받아서 이동: cleanerboard, 구조체 벡터 위치 갱신
 
-//////////////선언////////////
-int N;
-int board[40][40] = {0};
-bool exist_robot[40][40];
-int dr[4] = {0, 1, 0, -1};
-int dc[4] = {1, 0, -1, 0};
-int temp[40][40];
+2. 청소
+- 각 4방향을 계산하면서 -> 반시계 방향 순서대로 dr, dc 정의해놓고 인덱스만 하나씩 밀면 될듯.아니면 뛰어넘기 -> 해당 좌표의 각 board값을 저장해서 반환 -> min(20, 좌표값)
+- 청소하기 (순서대로)
 
-struct robot
+3. 먼지 축적
++5
+
+4. 확산
+
+*/
+////////////////////////////////////////////////////////////////
+//변수선언
+int N, K, L;
+
+struct cleaner
 {
-    int r;
-    int c;
+    int r, c;
 };
+vector<cleaner> C;
 
-//////////////////함수////////////////
+int board[40][40];
+int cleaner_board[40][40];
+int dist[40][40];
+int new_board[40][40];
 
-///이동거리계산///
-void bfs(int r, int c, int &targetR, int &targetC)
+//상,우,하,좌
+int dr[4]={-1,0,1,0};
+int dc[4]={0,1,0,-1};
+
+////////////////////////////////////////////////////////////////
+//함수 제작
+
+void reset_dist()
 {
-    int min_dist = 1000;
-    targetR=-1;
-    targetC=-1;
-
-    //거리 좌표 업데이트 배열
-    int dist[40][40];
-    
-    queue<pair<int, int>> q;
-    q.push({r, c});
-
-    //초기화
     for(int i=1; i<=N; i++)
     {
         for(int j=1; j<=N; j++)
         {
-            dist[i][j] = -1;
+            dist[i][j]=-1;
         }
     }
+}
 
-    dist[r][c] = 0;
+void reset_new_board()
+{
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            new_board[i][j]=0;
+        }
+    }
+}
 
-     //r,c가 이미 먼지가 있는 격자라면
+
+
+int inrange(int r, int c)
+{
+    return (r>=1 && r<=N && c>=1 && c<=N);
+}
+
+set<tuple<int,int,int>> cal_dist(int r, int c)
+{
+    reset_dist();
+
+    set<tuple<int,int,int>> s;
+
+    queue<pair<int,int>> q;
+
+    q.push({r,c});
+
+    dist[r][c]=0;
+
     if(board[r][c]>0)
     {
-        min_dist = dist[r][c];
-        targetR = r;
-        targetC = c;
-        return;
+        s.insert({dist[r][c], r, c});
     }
 
     while(!q.empty())
     {
-        pair<int, int> cur = q.front();
-        
-        r = cur.first;
-        c = cur.second;
+        pair<int,int> p = q.front();
 
         q.pop();
 
         for(int i=0; i<4; i++)
         {
-            int newR = r + dr[i];
-            int newC = c + dc[i];
+            int newr = p.first + dr[i];
+            int newc = p.second + dc[i];
 
-            //격자 범위
-            if(newR<1 || newR>N || newC<1 || newC>N)
+            if(!inrange(newr,newc))
             {
                 continue;
             }
 
-            //물건이라 이동못함
-            if(board[newR][newC]==-1) 
+            if(cleaner_board[newr][newc]==1||board[newr][newc]==-1||dist[newr][newc]!=-1)
             {
                 continue;
             }
 
-            //다른 로봇잇어서 이동못함
-            if(exist_robot[newR][newC])
+            dist[newr][newc] = dist[p.first][p.second]+1;
+
+            if(board[newr][newc]>0)
             {
-                continue;
+                s.insert({dist[newr][newc], newr, newc});
             }
 
-            //이미 방문해서 갱신된 곳
-            if(dist[newR][newC]!=-1)
-            {
-                continue;
-            }
-
-            dist[newR][newC] = dist[r][c] + 1;
-            q.push({newR, newC});
-
-            if(board[newR][newC]>0)
-            {
-                if(min_dist>dist[newR][newC])
-                {
-                    min_dist = dist[newR][newC];
-                    targetR = newR;
-                    targetC = newC;
-                }
-
-                else if(min_dist == dist[newR][newC])
-                {
-                    if(targetR>newR || (targetR==newR && targetC>newC))
-                    {
-                        targetR = newR;
-                        targetC = newC;
-                    }
-                }
-            }
+            q.push({newr,newc});
         }
     }
 
-    if(min_dist==1000)
+    return s;
+}
+
+void move_one(int i)
+{
+    set<tuple<int,int,int>> s =  cal_dist(C[i].r, C[i].c);
+
+    if(s.empty())
     {
         return;
     }
+
+    tuple<int,int,int> t = *s.begin();
+
+    cleaner_board[C[i].r][C[i].c]=0;
+
+    C[i].r = get<1>(t);
+    C[i].c = get<2>(t);
+
+    cleaner_board[C[i].r][C[i].c]=1;
 }
 
-//청소
-void clean(int targetR, int targetC)
+void step1()
 {
-    int d;
-    int up = 0;
-    int down=0;
-    int right=0;
-    int left=0;
-
-    int max=-1;
-
-    int self = min(board[targetR][targetC],20);
-
-    if(targetR-1 >= 1)
+    for(int i=0; i<K; i++)
     {
-        if(board[targetR-1][targetC]==-1)
-        {
-            up =0;
-        }
-        else up = min(board[targetR-1][targetC], 20);
-    }
-
-    if(targetR+1<=N)
-    {
-        if(board[targetR+1][targetC]==-1)
-        {
-            down =0;
-        }
-       else  down = min(board[targetR+1][targetC],20);
-    }
-
-    if(targetC+1<=N)
-    {
-        if(board[targetR][targetC+1]==-1)
-        {
-            right = 0;
-        }
-        else right = min(board[targetR][targetC+1],20);
-    }
-
-    if(targetC-1>=1)
-    {
-        if(board[targetR][targetC-1]==-1)
-        {
-            left=0;
-        }
-        else left = min(board[targetR][targetC-1],20);
-    }
-
-    int sum1 = up+down+right+self;
-    int sum2 = left+down+right+self;
-    int sum3 = up+left+down+self;
-    int sum4 = up+left+right+self;
-    
-    int bestsum[4] = {sum1, sum2, sum3, sum4};
-
-    for(int i = 0; i<4; i++)
-    {
-        if(bestsum[i]>max)
-        {
-            d=i;
-            max=bestsum[i];
-        }
-    }
-
-    switch(d)
-    {
-        case 0:
-        board[targetR][targetC] -= self;
-        if(targetR-1 >= 1)
-        {
-            board[targetR-1][targetC] -= up;
-        }
-        if(targetR+1<=N)
-        {
-            board[targetR+1][targetC] -= down;
-        }
-        if(targetC+1<=N)
-        {
-            board[targetR][targetC+1] -= right;
-        }
-        break;
-
-        case 1:
-        board[targetR][targetC] -= self;
-        if(targetC-1>=1)
-        {
-            board[targetR][targetC-1] -= left;
-        }
-        if(targetR+1<=N)
-        {
-            board[targetR+1][targetC] -= down;
-        }
-        if(targetC+1<=N)
-        {
-            board[targetR][targetC+1] -= right;
-        }
-        break;
-
-        case 2:
-        board[targetR][targetC] -= self;
-        if(targetR-1 >= 1)
-        {
-            board[targetR-1][targetC] -= up;
-        }
-        if(targetR+1<=N)
-        {
-            board[targetR+1][targetC] -= down;
-        }
-        if(targetC-1>=1)
-        {
-            board[targetR][targetC-1] -= left;
-        }
-        break;
-
-        case 3:
-        board[targetR][targetC] -= self;
-        if(targetR-1 >= 1)
-        {
-            board[targetR-1][targetC] -= up;
-        }
-        if(targetC-1>=1)
-        {
-            board[targetR][targetC-1] -= left;
-        }
-        if(targetC+1<=N)
-        {
-            board[targetR][targetC+1] -= right;
-        }
-        break;
+        move_one(i);
     }
 }
 
-//축적
-void add()
+
+
+int direction_4(int r, int c)
+{
+    int max_b = -10000;
+    int max_j;
+
+    int a=0;
+
+    if(board[r][c]>0)
+    {
+        a+=min(20,board[r][c]);
+    }
+
+    for(int j=0; j<4; j++)
+    {
+        int b=a;
+
+        for(int i=j; i<3+j; i++)
+        {
+            int new_i=i%4;
+
+            int newr = r + dr[new_i];
+            int newc = c + dc[new_i];
+
+            if(!inrange(newr,newc))
+            {
+                continue;
+            }
+
+            if(board[newr][newc]>0)
+            {
+                b+=min(20,board[newr][newc]);
+            }
+        }
+
+        if(b>max_b)
+        {
+            max_b=b;
+            max_j=j;
+        }
+    }
+
+    return max_j;
+}
+
+void clean(int j)
+{
+    int d = direction_4(C[j].r, C[j].c);
+
+    if(board[C[j].r][C[j].c] > 0)
+    {
+        board[C[j].r][C[j].c] -= min(20,board[C[j].r][C[j].c]);
+    }
+
+    for(int i=d; i<3+d; i++)
+    {
+        int new_i = i%4;
+
+        int newr = C[j].r + dr[new_i];
+        int newc = C[j].c + dc[new_i];
+
+        if(!inrange(newr,newc))
+        {
+            continue;
+        }
+
+        if(board[newr][newc] > 0)
+        {
+            board[newr][newc] -= min(20,board[newr][newc]);
+        }
+    }
+}
+
+void step2()
+{
+    for(int i=0; i<K; i++)
+    {
+        clean(i);
+    }
+}
+
+
+
+
+void step3()
 {
     for(int i=1; i<=N; i++)
     {
@@ -272,132 +258,188 @@ void add()
     }
 }
 
-//4방향 먼지 합
-int d_sum(int r, int c)
-{
-    int sum=0;
 
-    for(int i=0; i<4; i++)
-    {
-        int newR = r + dr[i];
-        int newC = c + dc[i];
 
-        if(newR<1 || newR>N || newC<1 || newC>N)
-        {
-            continue;
-        }
 
-        if(temp[newR][newC]>0)
-        {
-            sum+=temp[newR][newC];
-        }
-    }
-
-    return sum/10;
-}
-
-//확산
 void spread()
 {
-    //temp엔 원본 보드값이 저장
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            temp[i][j] = board[i][j];
-        }
-    }
-
+    reset_new_board();
 
     for(int i=1; i<=N; i++)
     {
         for(int j=1; j<=N; j++)
         {
-            if(temp[i][j]==0)
+            if(board[i][j]==0)
             {
-                board[i][j] = d_sum(i,j);
+                for(int d=0; d<4; d++)
+                {
+                    int newi = i + dr[d];
+                    int newj = j + dc[d];
+
+                    if(!inrange(newi, newj))
+                    {
+                        continue;
+                    }
+
+                    if(board[newi][newj]>0)
+                    {
+                        new_board[i][j]+=board[newi][newj];
+                    }
+                }
+            }
+
+            if(new_board[i][j]!=0)
+            {
+                new_board[i][j]/=10;
             }
         }
     }
 }
 
-int main() {
-    
-    /////////////선언/////////////
+void step4()
+{
+    spread();
+
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            if(new_board[i][j]!=0)
+            {
+                board[i][j]+=new_board[i][j];
+            }
+        }
+    }
+}
 
 
-    int K,L,p,r,c;
 
-    int sum=0;
 
-    
-    ////////////////////////////
+
+int step5()
+{
+    int a=0;
+
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            if(board[i][j]>0)
+            {
+                a+=board[i][j];
+            }
+        }
+    }
+    return a;
+}
+
+
+////////////////////////////////////////////////////////////////
+void cout_board()
+{
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            cout << board[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_cleaner_board()
+{
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            cout << cleaner_board[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_dist()
+{
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            cout << dist[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////
+
+
+
+int main(int argc, char** argv)
+{
+    freopen("input.txt", "r", stdin);
+////////////////////////////////////////////////////////////////
+//입력
+    int p,r,c;
+
     cin >> N >> K >> L;
+    C.resize(K);
 
-    vector<robot> robots(K);
-
-    for(int i=1; i<=N; i++){
+    for(int i=1; i<=N; i++)
+    {
         for(int j=1; j<=N; j++)
         {
             cin >> p;
             board[i][j]=p;
-            //p가 0이면 먼지 없음, p만큼 먼지, -1이면 물건
         }
     }
 
-    for(int k=0; k<K; k++)
+    for(int i=0; i<K; i++)
     {
         cin >> r >> c;
-        
-        exist_robot[r][c]=true;
-
-        robots[k].r = r;
-        robots[k].c = c;
+        C[i].r=r;
+        C[i].c=c;
+        cleaner_board[r][c]=1;
     }
 
 
-    for(int l=1; l<=L; l++)
+////////////////////////////////////////////////////////////////
+//출력
+
+
+
+    vector<int> ans;
+
+    for(int i=0; i<L; i++)
     {
-        sum=0;
-        int targetR;
-        int targetC;
+        step1();
+        cerr<<"실행"<<"\n";
+        step2();
+        cerr<<"실행"<<"\n";
+        step3();
+        cerr<<"실행"<<"\n";
+        step4();
+        cerr<<"실행"<<"\n";
 
-        /////함수////
-        for(int e=0; e<K; e++)
-        {
-            bfs(robots[e].r, robots[e].c, targetR, targetC);
-
-            if(targetR!=-1)
-            {
-                exist_robot[robots[e].r][robots[e].c] = false;
-                robots[e].r = targetR;
-                robots[e].c = targetC;
-                exist_robot[robots[e].r][robots[e].c] = true;
-            }
-        }
-
-        for(int e=0; e<K; e++)
-        {
-            clean(robots[e].r, robots[e].c);
-        }
-
-        add();
-        spread();
-
-        //////////////
-        for(int q=1; q<=N; q++)
-        {
-            for(int w=1; w<=N; w++)
-            {
-                if(board[q][w]>=0)
-                {
-                    sum+=board[q][w];
-                }
-            }
-        }
-
-        cout << sum <<"\n";
+        ans.push_back(step5());
+        cerr<<"실행"<<"\n";
     }
 
-    return 0;
+    for(int a : ans)
+    {
+        cout << a << "\n";
+    }
+
+////////////////////////////////////////////////////////////////
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
+
