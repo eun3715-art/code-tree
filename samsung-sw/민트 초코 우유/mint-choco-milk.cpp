@@ -46,7 +46,7 @@ int dc[4] = {0,0,-1,1};
 
 set<tuple<int,int,int,int>> presidents;
 
-int ans[7];
+long long ans[7];
 
 ////////////////////////////////////////////////////////////////
 //함수 제작
