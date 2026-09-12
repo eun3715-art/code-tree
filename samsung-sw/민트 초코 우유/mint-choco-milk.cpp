@@ -1,421 +1,444 @@
-#include <iostream>
-#include <set>
-#include <vector>
-#include <algorithm>
-#include <tuple>
-#include <string>
+#include<iostream>
+#include<cstdio>
+#include<string>
+#include<vector>
+#include<queue>
+#include<algorithm>
+#include<set>
 
-
+////////////////////////////////////////////////////////////////
 using namespace std;
+////////////////////////////////////////////////////////////////
+/*
+1. 아침
+신앙심 +1
 
+2. 점심
+-격자 하나씩 돌면서 bfs
+1) 대표자 정하기
+2) 팀원 수 구해서 대표자 신앙심 더해주고, 각자 -1해주기
+3) 전체 set에 (단일음식은 1, 이중조합은 2, 삼중은 3) , -대표자 신앙, 대표자행, 대표자 열 저장
 
-/////선언
-int N;
-///T-1, C-2, M-3
-int boardF[55][55]={0};
-int boardB[55][55]={0};
-int dr[4]={-1,1,0,0};
-int dc[4]={0,0,-1,1};
-bool visited[55][55]={0};
-set<tuple<int,int,int>> group;
-bool already[55][55]={0};
+3. 저녁
+set에서 하나씩 꺼내면서 로직 시작
+- x & 방향 정하기
+- 방향 대로 한칸씩 진행
+-두 가지 경우 생각
 
+-> 전파 당한 애들은 따로 board하나 만들어서 거기에 1로 체크. 걔네들을 set에서 대표자로 꺼내져도 continue;
 
+4. 신앙심 더하기
 
+*/
+////////////////////////////////////////////////////////////////
+//변수선언
+int N, T;
 
-/////////함수
+string boardF[60][60];
+int boardB[60][60];
+int visited[60][60];
 
-////////1단계
-void first()
+int sybe[60][60];
+
+//상하좌우
+int dr[4] = {-1,1,0,0};
+int dc[4] = {0,0,-1,1};
+
+set<tuple<int,int,int,int>> presidents;
+
+int ans[7];
+
+////////////////////////////////////////////////////////////////
+//함수 제작
+
+void reset_visited()
 {
-    for(int i=0; i<N; i++)
+    for(int i=1; i<=N; i++)
     {
-        for(int j=0; j<N; j++)
+        for(int j=1; j<=N; j++)
         {
-            boardB[i][j]+=1;
+            visited[i][j]=0;
         }
     }
 }
 
-
-//////2단계
-
-//dfs
-void dfs(int i, int j, bool already[55][55])
+void reset_sybe()
 {
-    already[i][j]=true;
-
-    group.insert({-boardB[i][j], i,j});
-
-    for(int k=0; k<4; k++)
+    for(int i=1; i<=N; i++)
     {
-        int r=i+dr[k];
-        int c=j+dc[k];
-
-        if(r<0 || r>=N || c<0 || c>=N)
+        for(int j=1; j<=N; j++)
         {
-            continue;
-        }
-
-        if(boardF[i][j]==boardF[r][c] && !already[r][c])
-        {
-            dfs(r,c, already);
+            sybe[i][j]=0;
         }
     }
 }
 
-//대표자 그룹 순서 계산
-int cal(int r, int c)
+void reset_ans()
 {
-    if(boardF[r][c] /10 ==0)
+    for(int i=0; i<=6; i++)
     {
-        return 1;
-    }
-
-    else if(boardF[r][c] /10 < 10 && boardF[r][c] /10 > 0)
-    {
-        return 2;
-    }
-
-    else
-    {
-        return 3;
+        ans[i]=0;
     }
 }
 
 
-//대표자 뽑고 신앙심 계산
-set<tuple<int,int,int, int>> second()
+void step1()
 {
-    for(int i=0; i<N; i++)
+    for(int i=1; i<=N; i++)
     {
-        for(int j=0; j<N; j++)
+        for(int j=1; j<=N; j++)
         {
-            already[i][j]=false;
+            boardB[i][j]++;
         }
     }
+}
 
-    int max_value = -1;
-    
-    set<tuple<int,int,int,int>> president;
+int inrange(int r, int c)
+{
+    return (r>=1 && r<=N && c>=1 && c<=N);
+}
 
-    for(int i=0; i<N; i++)
+void bfs(int r, int c)
+{
+    queue<pair<int,int>> q;
+
+    q.push({r,c});
+
+    visited[r][c]=1;
+
+    pair<int,int> president = {r,c};
+    int max_B = boardB[r][c];
+
+    int total_count=1;
+
+    while(!q.empty())
     {
-        for(int j=0; j<N; j++)
+        pair<int,int> p = q.front();
+
+        q.pop();
+
+        for(int i=0; i<4; i++)
         {
-           if(already[i][j])
-           {
+            int newr = p.first + dr[i];
+            int newc = p.second + dc[i];
+
+            if(!inrange(newr, newc))
+            {
                 continue;
-           }
+            }
 
-           group.clear();
-           dfs(i, j, already);
-           
-           auto num = *group.begin();
-           int maxr = get<1>(num);
-           int maxc = get<2>(num);
-           
-           for(tuple<int,int,int> a : group)
-           {
-                if(get<1>(a)==maxr && get<2>(a) == maxc)
-                {
-                    boardB[get<1>(a)][get<2>(a)]+=group.size()-1;
-                }
-                else
-                {
-                    boardB[get<1>(a)][get<2>(a)]-=1;
-                }
-           }
+            if(visited[newr][newc])
+            {
+                continue;
+            }
 
-           int n = cal(maxr, maxc);
-           president.insert({n, -boardB[maxr][maxc], maxr, maxc});
+            if(boardF[p.first][p.second] == boardF[newr][newc])
+            {
+                q.push({newr,newc});
+
+                visited[newr][newc]=1;
+
+                total_count++;
+
+                if(max_B < boardB[newr][newc])
+                {
+                    president.first = newr;
+                    president.second = newc;
+
+                    max_B = boardB[newr][newc];
+                }
+
+                else if (boardB[newr][newc] == max_B) 
+                {
+                    // 신앙심이 같으면 행이 작은 것, 행도 같으면 열이 작은 것
+                    if (newr < president.first || (newr == president.first && newc < president.second)) 
+                    {
+                        president = {newr, newc};
+                    }
+                }
+            }
         }
     }
-    return president;
+
+    boardB[president.first][president.second] += total_count;
+
+    presidents.insert({boardF[president.first][president.second].size(), -boardB[president.first][president.second], president.first, president.second});
 }
 
-///////////////3단계
-
-//
-void strong(int r, int c, int i, int j, int &x, int y, bool visited[55][55])
+void all_minus1()
 {
-    boardF[r][c] = boardF[i][j];
-    x-=y+1;
-    boardB[r][c]+=1;
-    visited[r][c]=true;
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            boardB[i][j]--;
+        }
+    }
 }
 
-void weak(int r, int c, int i, int j, int &x, int y, bool visited[55][55])
+void step2()
 {
-    string s = to_string(boardF[r][c]); 
-    s+=to_string(boardF[i][j]);
+    reset_visited();
+    presidents.clear();
 
-    sort(s.begin(), s.end());
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            if(visited[i][j])
+            {
+                continue;
+            }
 
-    s.erase(unique(s.begin(), s.end()), s.end());
+            bfs(i,j);
+        }
+    }
+
+    all_minus1();
+}
+
+//////////////////////////////////
+
+void strong_spread(int r, int c, int &x, int newr, int newc)
+{
+    boardF[newr][newc] = boardF[r][c];
+
+    int y = boardB[newr][newc];
+
+    x-=(y+1);
+
+    boardB[newr][newc]++;
+}
+
+void weak_spread(int r, int c, int &x, int newr, int newc)
+{
+    for(int i=0; i<boardF[r][c].size(); i++)
+    {
+        if(find(boardF[newr][newc].begin(), boardF[newr][newc].end(), boardF[r][c][i])==boardF[newr][newc].end())
+        {
+            boardF[newr][newc] += boardF[r][c][i];
+        }
+    }
     
-    boardF[r][c] = stoi(s);
+    sort(boardF[newr][newc].begin(), boardF[newr][newc].end());
 
-    boardB[r][c]+=x;
+    boardB[newr][newc]+=x;
 
     x=0;
-
-    visited[r][c]=true;
 }
 
-//전파 시도
-void third(set<tuple<int,int,int,int>> t)
+void spread(int r, int c, int d, int x)
 {
-    bool visited[55][55]={0};
+    int i=0;
 
-    for(tuple<int,int,int,int> a : t)
+    while(x>0)
     {
-        int i = get<2>(a);
-        int j = get<3>(a);
-        int belif = -get<1>(a);
+        i++;
 
-        if(visited[i][j])
+        int newr = r + dr[d]*i;
+        int newc = c + dc[d]*i;
+
+        if(!inrange(newr,newc))
+        {
+            break;
+        }
+
+        if(boardF[r][c] == boardF[newr][newc])
         {
             continue;
         }
 
-        int x = belif-1;
-        int d = belif%4;
-
-        boardB[i][j] =1;
-
-        int r = i;
-        int c = j;
-
-        while(x!=0)
+        if(x > boardB[newr][newc])
         {
-            r += dr[d];
-            c += dc[d];
+            strong_spread(r, c, x, newr, newc);
+        }
 
-            if(r<0 || r>=N || c<0 || c>=N)
+        else
+        {
+            weak_spread(r, c, x, newr, newc);
+        }
+
+        sybe[newr][newc]=1;
+    }
+}
+
+void step3()
+{
+    reset_sybe();
+
+    for(tuple<int,int,int,int> t : presidents)
+    {
+        int r = get<2>(t);
+        int c = get<3>(t);
+        int x = boardB[r][c]-1;
+        int d = boardB[r][c]%4;
+
+        if(sybe[r][c])
+        {
+            continue;
+        }
+
+        boardB[r][c]=1;
+
+        spread(r, c, d, x);
+    }
+}
+
+void step4()
+{
+    //T민트, C초코, M우유
+    reset_ans();
+
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            if(boardF[i][j]=="CMT")
             {
-                break;
+                ans[0]+=boardB[i][j];
             }
-
-            int y = boardB[r][c];
-           
-
-            if(boardF[i][j] == boardF[r][c])
+            else if(boardF[i][j]=="CT")
             {
-                continue;
+                ans[1]+=boardB[i][j];
             }
-
-            if(x>y)
+            else if(boardF[i][j]=="MT")
             {
-                strong(r, c, i, j, x, y, visited);
+                ans[2]+=boardB[i][j];
             }
-            else 
+            else if(boardF[i][j]=="CM")
             {
-                weak(r, c, i, j, x, y, visited);
+                ans[3]+=boardB[i][j];
+            }
+            else if(boardF[i][j]=="M")
+            {
+                ans[4]+=boardB[i][j];
+            }
+            else if(boardF[i][j]=="C")
+            {
+                ans[5]+=boardB[i][j];
+            }
+            else if(boardF[i][j]=="T")
+            {
+                ans[6]+=boardB[i][j];
             }
         }
     }
 }
 
-///////////////
-int charToNum(char c)
+////////////////////////////////////////////////////////////////
+void cout_boardF()
 {
-    if(c=='T') return 1;
-    else if(c=='C') return 2;
-    else return 3;
-}
-
-
-
-int main()
-{
-    int T;
-    string Sf;
-    int Sb;
-
-    cin >> N >> T;
-
-    for(int i=0; i<N; i++)
+    for(int i=1; i<=N; i++)
     {
-        cin >> Sf;
-
-        for(int j=0; j<N; j++)
-        {
-            boardF[i][j]=charToNum(Sf[j]);
-        }
-    }
-
-    for(int i=0; i<N; i++)
-    {
-        for(int j=0; j<N; j++)
-        {
-            cin >> Sb;
-            boardB[i][j]=Sb;
-        }
-    }
-
-    //////
-
-    for(int i=0; i<T; i++)
-    {
-        first();
-        set<tuple<int,int,int, int>> s = second();
-        third(s);
-
-        int n1=0, n2=0, n3=0, n4=0, n5=0, n6=0, n7=0;
-
-        int result[10] = {0};
-        
-        for(int j=0; j<N; j++)
-        {
-            for(int k=0; k<N; k++)
-            {
-                if(boardF[j][k]==123)
-                {
-                    n1+=boardB[j][k];
-                }
-                else if(boardF[j][k]==12)
-                {
-                    n2+=boardB[j][k];
-                }
-                else if(boardF[j][k]==13)
-                {
-                    n3+=boardB[j][k];
-                }
-                else if(boardF[j][k]==23)
-                {
-                    n4+=boardB[j][k];
-                }
-                else if(boardF[j][k]==3)
-                {
-                    n5+=boardB[j][k];
-                }
-                else if(boardF[j][k]==2)
-                {
-                    n6+=boardB[j][k];
-                }
-                else if(boardF[j][k]==1)
-                {
-                    n7+=boardB[j][k];
-                }
-            }
-        }
-
-        cout << n1 << " " << n2 << " " << n3<< " "<< n4<< " "<< n5<< " "<< n6<< " "<< n7;
-        cout << "\n";
-    }
-
-    // Please write your code here.
-    return 0;
-}
-
-/*
-
-
-//테스트용 main
-int main()
-{
-    N=4;
-    boardB[0][0] = 1;
-    boardB[0][1] = 3;
-    boardB[0][2] = 3;
-    boardB[0][3] = 3;
-    boardB[1][0] = 2;
-    boardB[1][1] = 23;
-    boardB[1][2] = 16;
-    boardB[1][3] = 8;
-    boardB[2][0] = 12;
-    boardB[2][1] = 6;
-    boardB[2][2] = 7;
-    boardB[2][3] = 8;
-    boardB[3][0] = 12;
-    boardB[3][1] = 8;
-    boardB[3][2] = 3;
-    boardB[3][3] = 5;
-
-    boardF[0][0] = 1;
-    boardF[0][1] = 1;
-    boardF[0][2] = 2;
-    boardF[0][3] = 2;
-    boardF[1][0] = 1;
-    boardF[1][1] = 1;
-    boardF[1][2] = 1;
-    boardF[1][3] = 3;
-    boardF[2][0] = 2;
-    boardF[2][1] = 2;
-    boardF[2][2] = 3;
-    boardF[2][3] = 3;
-    boardF[3][0] = 2;
-    boardF[3][1] = 3;
-    boardF[3][2] = 3;
-    boardF[3][3] = 3;
-
-    first();
-
-    for(int i=0; i<N; i++)
-    {
-        for(int j=0; j<N; j++)
-        {
-            cout << boardB[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "\n";
-
-    for(int i=0; i<N; i++)
-    {
-        for(int j=0; j<N; j++)
+        for(int j=1; j<=N; j++)
         {
             cout << boardF[i][j] << " ";
         }
         cout << "\n";
     }
-    cout << "\n";
+    cout << "\n\n";
+}
 
-    cout << cal(0, 0);
-    cout << "\n";
-    cout << "\n";
-
-
-    //set<tuple<int,int,int>>  s = dfs(0, 0, already, group);
-    set<tuple<int,int,int, int>> s = second();
-    for(auto a : s)
+void cout_boardB()
+{
+    for(int i=1; i<=N; i++)
     {
-        cout<< get<0>(a) << " ";
-        cout<< -get<1>(a) << " ";
-        
-        cout<< get<2>(a) << " ";
-        cout<< get<3>(a) << " ";
-         cout << "\n";
-    }
-
-    cout << "\n";
-    cout << "\n";
-
-    for(int i=0; i<N; i++)
-    {
-        for(int j=0; j<N; j++)
+        for(int j=1; j<=N; j++)
         {
             cout << boardB[i][j] << " ";
         }
         cout << "\n";
     }
-    cout << "\n";
+    cout << "\n\n";
+}
 
-    third(s);
-
-
-    for(int i=0; i<N; i++)
+void cout_visited()
+{
+    for(int i=1; i<=N; i++)
     {
-        for(int j=0; j<N; j++)
+        for(int j=1; j<=N; j++)
         {
-            cout << boardB[i][j] << " ";
+            cout << visited[i][j] << " ";
         }
         cout << "\n";
     }
-    cout << "\n";
+    cout << "\n\n";
+}
+
+void cout_presidents()
+{
+    for(tuple<int,int,int,int> t : presidents)
+    {
+        cout << get<0>(t) << " " << get<1>(t) << " " << get<2>(t) << " " << get<3>(t) << "\n\n";
+    }
+}
+
+////////////////////////////////////////////////////////////////
+
+int main(int argc, char** argv)
+{
+    freopen("input.txt", "r", stdin);
+////////////////////////////////////////////////////////////////
+//입력
+
+    string F;
+    int n;
+
+    cin >> N >> T;
+
+    for(int i=1; i<=N; i++)
+    {
+        cin >> F;
+
+        for(int j=1; j<=N; j++)
+        {
+            boardF[i][j] = F[j-1];
+        }
+    }
+
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            cin >> n;
+
+            boardB[i][j] = n;
+        }
+    }
+
+
+
+
+////////////////////////////////////////////////////////////////
+//출력
+
     
 
+    for(int i=0; i<T; i++)
+    {
+        step1();
 
+        step2();
+        
+        step3();            
+
+        step4();
+
+        for(int j=0; j<=6; j++)
+        {
+            cout << ans[j]<<" ";
+        }
+        cout << "\n";
+
+    }
+
+
+
+//////////////////////////////////////////////////////////////
+
+
+////////////////////////////////////////////////////////////////
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
-    */
+
