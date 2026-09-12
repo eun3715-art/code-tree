@@ -108,7 +108,7 @@ int main() {
         }
 
         // back to k-ascending for next pick
-        sort(boxes.begin(), boxes.end(), [](Box a, Box b){ return a.k < b.k; });
+        sort(boxes.begin(), boxes.end(), [](const Box& a, const Box& b){ return a.k < b.k; });
     }
 
     return 0;
