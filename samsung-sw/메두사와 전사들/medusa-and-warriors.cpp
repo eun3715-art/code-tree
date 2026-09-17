@@ -1,225 +1,667 @@
-#include <bits/stdc++.h>
+#include<iostream>
+#include<cstdio>
+#include<queue>
+#include<algorithm>
+#include<vector>
+#include<tuple>
+#include<utility>
+
+////////////////////////////////////////////////////////////////
 using namespace std;
+////////////////////////////////////////////////////////////////
+/*
+1. 메두사 이동 
+-공원에서 역으로 cal_dist 
+-하나 줄이는 방향으로 우선순위 맞춰서 메두사 한칸 이동
+-없으면 -1 출력하고 종료
+-도달햇으면 0 출력하고 종료
+-별일 아니면 항상 1 출력
+-이동한 곳에 전사 잇으면 죽인다
 
-struct COO {
-    int x, y;
-    bool is_valid(int N) const { return x >= 0 && x < N && y >= 0 && y < N; }
-    COO operator+(const COO &rhs) const { return {x + rhs.x, y + rhs.y}; }
-    bool operator!=(const COO &rhs) const { return x != rhs.x || y != rhs.y; }
-    bool operator==(const COO &rhs) const { return x == rhs.x && y == rhs.y; }
-    int get_dist(const COO &rhs) const { return abs(x - rhs.x) + abs(y - rhs.y); }
-};
+2. 메두사 시선 + 가림
+-시선에 따른 3칸의 종류 -> drc[4][3] 으로 값 저장해놓기 -> 꺼내쓰자
+-메두사 시선은 각 시선마다 3가지 방향으로 bfs해서 medusa_see 1로 만듦 + 가다가 전사 만날떄 좌표 & 방향 타입 q에 저장
+-q에서 하나씩 꺼내면서 가림효과는 다시 0으로 변화시키기-
+-각각을 상하좌우 순서로 돌면서 최적의 see맵이랑 cnt return, 가장 큰 cnt에 대해 그때의 see맵을 최종 see로 업뎃하기(move사용)
 
-// 우선순위 묶음: [0] 상하좌우, [1] 좌우상하
-vector<vector<COO>> all_dxys = {
-    {{-1, 0}, { 1, 0}, { 0,-1}, { 0, 1}}, // 상하좌우
-    {{ 0,-1}, { 0, 1}, {-1, 0}, { 1, 0}}, // 좌우상하
-};
 
-// 전사 관리
-struct WARRIOR_MAP {
-    vector<COO> warriors;
-    vector<vector<unordered_set<int>>> A;
+3. 전사 이동
+-dist 다시 갱신. see 1인 애들은 못지나가도록 하기
+-이중 포문에서 전사는 1인데 see가 0인 애들만 이동가느한지 판닩시작
+-각 칸에 대해 첫번째 이동 가능한지 can_move실행 -> 가능하면 이동 불가능하면 종료
+-두번째 이동도 실행해서 가능하면 이동. 불가능하면 종료(이미 메두사)
+-  ++, --로 갱신해야함
 
-    WARRIOR_MAP(int N, const vector<COO> &init) : warriors(init) {
-        A.resize(N, vector<unordered_set<int>>(N));
-        for (int i = 0; i < (int)warriors.size(); i++) A[warriors[i].x][warriors[i].y].insert(i);
-    }
+4. 전사보드가 메두사 칸에서 0이상이면 전부 0으로 만들고 죽이기.
 
-    void remove_warrior(int idx) {
-        COO w = warriors[idx];
-        A[w.x][w.y].erase(idx);
-        if (idx == (int)warriors.size() - 1) {
-            warriors.pop_back();
-        } else {
-            warriors[idx] = warriors.back();
-            warriors.pop_back();
-            A[warriors[idx].x][warriors[idx].y].erase((int)warriors.size());
-            A[warriors[idx].x][warriors[idx].y].insert(idx);
-        }
-    }
 
-    int remove_same_cell(const COO &medusa) {
-        int ret = 0;
-        for (int i = 0; i < (int)warriors.size(); i++) {
-            if (warriors[i] == medusa) {
-                remove_warrior(i);
-                i--;
-                ret++;
-            }
-        }
-        return ret;
-    }
+*/
+////////////////////////////////////////////////////////////////
+//변수선언
+int N, M;
 
-    pair<int,int> warriors_move(const vector<vector<int>> &vision_map, const COO &medusa) {
-        remove_same_cell(medusa);
+int sr, sc;
+int er, ec;
 
-        int step_cnt = 0;
-        for (int i = 0; i < (int)warriors.size(); i++)
-            if (vision_map[warriors[i].x][warriors[i].y] == 0)
-                step_cnt += warrior_move(vision_map, medusa, i);
+//0 도로, 1도로 아닌곳, 2 메두사
+int board[60][60];
 
-        int attackers = remove_same_cell(medusa);
-        return {step_cnt, attackers};
-    }
+int dist[60][60];
+int visited[60][60];
 
-    int warrior_move(const vector<vector<int>> &vision_map, const COO &medusa, int idx) {
-        int step_cnt = 0;
-        auto &w = warriors[idx];
-        for (auto &dxys : all_dxys) {
-            bool moved = false;
-            for (auto &dxy : dxys) {
-                COO nxt = w + dxy;
-                if (!nxt.is_valid((int)vision_map.size()) || vision_map[nxt.x][nxt.y] == 1) continue;
-                if (nxt.get_dist(medusa) < w.get_dist(medusa)) {
-                    A[w.x][w.y].erase(idx);
-                    w = nxt;
-                    A[w.x][w.y].insert(idx);
-                    moved = true;
-                    step_cnt++;
-                    break;
-                }
-            }
-            if (!moved) break;
-        }
-        return step_cnt;
-    }
+int medusa_see[60][60];
+int best_medusa_see[60][60];
 
-    bool is_warrior(const COO &p) const { return !A[p.x][p.y].empty(); }
-};
+int zeonsa[60][60];
+int new_zeonsa[60][60];
 
-// 시야 맵 생성 + 시야에 보이는 전사 수
-pair<vector<vector<int>>, int> get_vision_map(int N, const WARRIOR_MAP &warrior_map,
-                                              const COO &medusa, const vector<COO> &dxys3)
+int dr[4] = {-1,1,0,0};
+int dc[4] = {0,0,-1,1};
+
+pair<int,int> dxy[4][3] =
 {
-    vector<vector<int>> vision_map(N, vector<int>(N, 0));
-    int seen_cnt = 0;
+    {
+        {-1,-1}, {-1,0}, {-1,1}
+    },
 
-    struct VISIBLE_WARRIOR { COO coo; int type; };
-    queue<VISIBLE_WARRIOR> vis_q;
+    {
+        {1,1}, {1,0}, {1,-1},
+    },
 
-    int mx = medusa.x, my = medusa.y; // 구조적 바인딩 대신 명시적 선언
+    {
+        {1,-1}, {0,-1}, {-1,-1},
+    },
 
-    // 1) 시야 채우기(표시 BFS)
-    queue<COO> q;
-    q.push(medusa);
-    while (!q.empty()) {
-        COO cur = q.front(); q.pop();
-        for (auto &dxy : dxys3) {
-            COO nxt = cur + dxy;
-            if (!nxt.is_valid(N) || vision_map[nxt.x][nxt.y] == 1) continue;
+    {
+        {-1,1}, {0,1}, {1,1}
+    },
 
-            if (warrior_map.is_warrior(nxt)) {
-                if (mx == nxt.x || my == nxt.y) vis_q.push({nxt, 1});
-                else if ((nxt.x - mx) * dxys3[0].x > 0 && (nxt.y - my) * dxys3[0].y > 0) vis_q.push({nxt, 0});
-                else vis_q.push({nxt, 2});
+};
+
+int ans_distance=0;
+int ans_rock=0;
+int ans_attack=0;
+
+////////////////////////////////////////////////////////////////
+//함수 제작
+void reset_dist()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            dist[i][j]=-1;
+        }
+    }
+}
+
+void reset_visited()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            visited[i][j]=0;
+        }
+    }
+}
+
+
+void reset_medusa_see()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            medusa_see[i][j]=0;
+        }
+    }
+}
+
+void reset_best_medusa_see()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            best_medusa_see[i][j]=0;
+        }
+    }
+}
+
+
+void reset_new_zeonsa()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            new_zeonsa[i][j]=0;
+        }
+    }
+}
+
+int inrange(int r, int c)
+{
+    return (r>=0 && r<N && c>=0 && c<N);
+}
+
+void cal_dist()
+{
+    reset_dist();
+
+    dist[er][ec]=0;
+
+    queue<pair<int,int>> q;
+
+    q.push({er,ec});
+
+    while(!q.empty())
+    {
+        pair<int,int> p = q.front();
+
+        q.pop();
+
+        for(int i=0; i<4; i++)
+        {
+            int newr = p.first + dr[i];
+            int newc = p.second + dc[i];
+
+            if(!inrange(newr, newc))
+            {
+                continue;
             }
-            vision_map[nxt.x][nxt.y] = 1;
-            q.push(nxt);
+
+            if(board[newr][newc]==0 && dist[newr][newc]==-1)
+            {
+                q.push({newr,newc});
+                
+                dist[newr][newc] = dist[p.first][p.second] + 1;
+            }
+        }
+    }
+}
+
+int step1()
+{
+    cal_dist();
+
+    if(dist[sr][sc]==-1)
+    {
+        return -1;
+    }
+
+    for(int i=0; i<4; i++)
+    {
+        int new_sr = sr + dr[i];
+        int new_sc = sc + dc[i];
+
+        if(!inrange(new_sr, new_sc))
+        {
+            continue;
+        }
+
+        if(dist[new_sr][new_sc] == dist[sr][sc]-1)
+        {
+            sr = new_sr;
+            sc = new_sc;
+
+            break;
         }
     }
 
-    // 2) 가림 처리(뒤쪽 지우기 BFS)
-    while (!vis_q.empty()) {
-        VISIBLE_WARRIOR front = vis_q.front(); vis_q.pop();
-        COO coo = front.coo; int type = front.type;
-        for (int d = 0; d < 3; d++) {
-            if (type == 1 && d != 1) continue;
-            if (type == 0 && d == 2) continue;
-            if (type == 2 && d == 0) continue;
-            COO nxt = coo + dxys3[d];
-            if (!nxt.is_valid(N) || vision_map[nxt.x][nxt.y] == 0) continue;
-            vision_map[nxt.x][nxt.y] = 0;
-            vis_q.push({nxt, type});
+    if(zeonsa[sr][sc]>0)
+    {
+        zeonsa[sr][sc]=0;
+    }
+
+    if(sr==er && sc==ec)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+
+queue<tuple<int,int,int>> medusa_see_update(int d)
+{
+    reset_visited();
+
+    int r = sr;
+    int c = sc;
+
+    queue<pair<int,int>> q;
+    queue<tuple<int,int,int>> z;
+
+    q.push({r,c});
+
+    visited[r][c]=1;
+
+    while(!q.empty())
+    {
+        pair<int,int> cur_p = q.front();
+
+        q.pop();
+
+        for(int i=0; i<3; i++)
+        {
+            pair<int,int> p = dxy[d][i];
+
+            int newr = cur_p.first + p.first;
+            int newc = cur_p.second + p.second;
+
+            if(!inrange(newr,newc))
+            {
+                continue;
+            }
+
+            if(!visited[newr][newc])
+            {
+                visited[newr][newc]=1;
+                q.push({newr,newc});
+                medusa_see[newr][newc]=1;
+
+                int type;
+
+                if(zeonsa[newr][newc]>0)
+                {
+                    if(newr==sr || newc==sc)
+                    {
+                        type = 1;
+                    }
+                    else if((newr-sr)*dxy[d][0].first > 0 && (newc-sc)*dxy[d][0].second > 0)
+                    {
+                        type = 0;
+                    }
+                    else
+                    {
+                        type = 2;
+                    }
+
+                    z.push({newr,newc,type});
+                }
+
+                
+            }
         }
     }
 
-    for (int i = 0; i < N; i++)
-        for (int j = 0; j < N; j++)
-            if (vision_map[i][j]) seen_cnt += (int)warrior_map.A[i][j].size();
-
-    return {vision_map, seen_cnt};
+    return z;
 }
 
-// 도로(0)만 통과하는 BFS
-vector<vector<int>> get_dist_from(vector<vector<int>> &road, COO target) {
-    int N = (int)road.size();
-    vector<vector<int>> dist(N, vector<int>(N, -1));
-    queue<COO> q;
-    q.push(target); dist[target.x][target.y] = 0;
+void zeonsa_see_update(int d)
+{
+    queue<tuple<int,int,int>> q = medusa_see_update(d);
 
-    while (!q.empty()) {
-        COO cur = q.front(); q.pop();
-        for (auto &dxy : all_dxys[0]) {
-            COO nxt = cur + dxy;
-            if (!nxt.is_valid(N) || road[nxt.x][nxt.y] == 1 || dist[nxt.x][nxt.y] != -1) continue;
-            dist[nxt.x][nxt.y] = dist[cur.x][cur.y] + 1;
-            q.push(nxt);
+    while(!q.empty())
+    {
+        tuple<int,int,int> t = q.front();
+
+        q.pop();
+
+        int r = get<0>(t);
+        int c = get<1>(t);
+        int type = get<2>(t);
+
+
+        for(int k=0; k<3; k++)
+        {
+            if(type==1 && k!=1) continue;   // 직선 전사: 직선(1)만 허용
+            if(type==0 && k==2) continue;   // 대각0 전사: 반대쪽 대각(2) 제외
+            if(type==2 && k==0) continue;   // 대각2 전사: 반대쪽 대각(0) 제외
+
+            pair<int,int> p = dxy[d][k];
+
+            int newr = r + p.first;
+            int newc = c + p.second;
+
+            if(!inrange(newr,newc))
+            {
+                continue;
+            }
+
+            if(medusa_see[newr][newc]==0)
+            {
+                continue;
+            }    
+
+            medusa_see[newr][newc]=0;
+            q.push({newr,newc,type});   
         }
     }
-    return dist;
 }
 
-// 메두사 1칸 이동
-bool move_medusa(const vector<vector<int>> &dist, COO &cur) {
-    int N = (int)dist.size();
-    for (auto &dxy : all_dxys[0]) {
-        COO nxt = cur + dxy;
-        if (!nxt.is_valid(N) || dist[nxt.x][nxt.y] == -1) continue;
-        if (dist[nxt.x][nxt.y] < dist[cur.x][cur.y]) { cur = nxt; return true; }
+int count_zeonsa()
+{   
+    int count_z=0;
+
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            if(zeonsa[i][j]>0 && medusa_see[i][j]==1)
+            {
+                count_z+=zeonsa[i][j];
+            }
+        }
     }
-    return false;
+
+    return count_z;
 }
 
-int main() {
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
+void best_medusa_see_update()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            best_medusa_see[i][j] = medusa_see[i][j];
+        }
+    }
+}
 
-    int N, M;
-    COO st, ed;
+void step2()
+{
+    reset_best_medusa_see();
+
+    int best_count=-1;
+
+    for(int d=0; d<4; d++)
+    {
+        reset_medusa_see();
+
+        zeonsa_see_update(d);
+
+        int count = count_zeonsa();
+
+        if(count > best_count)
+        {
+            best_count = count;
+            best_medusa_see_update();
+        }
+    }
+
+    ans_rock+=best_count;
+}
+
+int manhattan(int r, int c)
+{
+    return abs(r - sr) + abs(c - sc);
+}
+
+pair<int,int> can_move(int r, int c, int &steps)
+{
+    steps = 0;
+
+    if(r == sr && c == sc)
+    {
+        return {r, c};
+    }
+
+    int d1 = -1, d2 = -1;
+
+    // 첫 번째 이동: 상하좌우 우선순위
+    for(int i = 0; i < 4; i++)
+    {
+        int newr = r + dr[i];
+        int newc = c + dc[i];
+
+        if(!inrange(newr, newc)) continue;
+        if(best_medusa_see[newr][newc]) continue;
+
+        if(manhattan(newr, newc) < manhattan(r, c))
+        {
+            d1 = i;
+            break;
+        }
+    }
+
+    if(d1 == -1)
+    {
+        return {r, c};
+    }
+
+    r += dr[d1];
+    c += dc[d1];
+    steps++;
+
+    if(r == sr && c == sc)
+    {
+        return {r, c};
+    }
+
+    // 두 번째 이동: 좌우상하 우선순위
+    int new_dr[4] = {0,0,-1,1};
+    int new_dc[4] = {-1,1,0,0};
+
+    for(int i = 0; i < 4; i++)
+    {
+        int newr = r + new_dr[i];
+        int newc = c + new_dc[i];
+
+        if(!inrange(newr, newc)) continue;
+        if(best_medusa_see[newr][newc]) continue;
+
+        if(manhattan(newr, newc) < manhattan(r, c))
+        {
+            d2 = i;
+            break;
+        }
+    }
+
+    if(d2 == -1)
+    {
+        return {r, c};
+    }
+
+    r += new_dr[d2];
+    c += new_dc[d2];
+    steps++;
+
+    return {r, c};
+}
+
+void zeonsa_update()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            zeonsa[i][j] += new_zeonsa[i][j];
+        }
+    }
+}
+
+
+void step3()
+{
+    reset_new_zeonsa();
+    // cal_dist2();  <- 더 이상 필요 없으므로 삭제
+
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            if(zeonsa[i][j]>0 && best_medusa_see[i][j]==0)
+            {
+                int steps;
+                pair<int,int> p = can_move(i, j, steps);
+
+                ans_distance += steps * zeonsa[i][j];
+
+                new_zeonsa[p.first][p.second] += zeonsa[i][j];
+
+                zeonsa[i][j] = 0;
+            }
+        }
+    }
+
+    zeonsa_update();
+}
+
+void step4()
+{
+    if(zeonsa[sr][sc]>0)
+    {
+        ans_attack+=zeonsa[sr][sc];
+
+        zeonsa[sr][sc]=0;
+    }
+}
+
+/////////////////////////////////////////
+
+void cout_visited()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << visited[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_dist()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << dist[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+
+void cout_medusa_see()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << medusa_see[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_best_medusa_see()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << best_medusa_see[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+
+void cout_zeonsa()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << zeonsa[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_new_zeonsa()
+{
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cout << new_zeonsa[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_medusa()
+{
+    cout << sr << " " << sc<<"\n\n";
+}
+
+////////////////////////////////////////////////////////////////
+
+int main(int argc, char** argv)
+{
+    freopen("input.txt", "r", stdin);
+////////////////////////////////////////////////////////////////
+
+    int ar, ac, n;
+
     cin >> N >> M;
-    cin >> st.x >> st.y >> ed.x >> ed.y;
 
-    vector<COO> init_warriors(M);
-    for (int i = 0; i < M; i++) cin >> init_warriors[i].x >> init_warriors[i].y;
+    cin >> sr >> sc >> er >> ec;
 
-    WARRIOR_MAP warrior_map(N, init_warriors);
-
-    vector<vector<int>> road(N, vector<int>(N));
-    for (int i = 0; i < N; i++)
-        for (int j = 0; j < N; j++)
-            cin >> road[i][j];
-
-    auto dist = get_dist_from(road, ed);
-    if (dist[st.x][st.y] == -1) { cout << -1 << '\n'; return 0; }
-
-    COO cur = st;
-
-    // 방향별 3갈래(시야 벡터): 위/아래/좌/우
-    vector<vector<COO>> vision_dxys = {
-        {{-1,-1}, {-1, 0}, {-1, 1}}, // 위
-        {{ 1,-1}, { 1, 0}, { 1, 1}}, // 아래
-        {{-1,-1}, { 0,-1}, { 1,-1}}, // 좌
-        {{-1, 1}, { 0, 1}, { 1, 1}}, // 우
-    };
-
-    while (cur != ed) {
-        move_medusa(dist, cur);
-        if (cur == ed) { cout << 0 << '\n'; break; }
-
-        // 네 방향 중 최다 석화 방향 선택(동률: 상/하/좌/우)
-        vector<vector<int>> best_map;
-        int best_seen = -1, best_dir = 0;
-        for (int d = 0; d < 4; d++) {
-            auto result = get_vision_map(N, warrior_map, cur, vision_dxys[d]);
-            vector<vector<int>> vmap = result.first;
-            int cnt = result.second;
-            if (cnt > best_seen) { best_seen = cnt; best_map = move(vmap); best_dir = d; }
-        }
-
-        auto result2 = warrior_map.warriors_move(best_map, cur);
-        int step_sum = result2.first, attackers = result2.second;
-        cout << step_sum << ' ' << best_seen << ' ' << attackers << '\n';
+    for(int i=0; i<M; i++)
+    {
+        cin >> ar >> ac;
+        zeonsa[ar][ac]++;
     }
-    return 0;
+
+    for(int i=0; i<N; i++)
+    {
+        for(int j=0; j<N; j++)
+        {
+            cin >> n;
+
+            board[i][j]=n;
+        }
+    }
+
+    
+
+
+////////////////////////////////////////////////////////////////
+//출력
+
+while(1)
+{
+    ans_distance=0;
+    ans_rock=0;
+    ans_attack=0;
+    int temp = step1();
+
+    if(temp==0)
+    {
+        cout << 0;
+        break;
+    }
+    else if(temp==-1)
+    {
+        cout << -1;
+        break;
+    }
+
+    step2();
+
+    step3();
+
+    step4();
+
+    cout << ans_distance << " " << ans_rock << " " << ans_attack << "\n";
 }
+
+    
+////////////////////////////////////////////////////////////////
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
+}
+
