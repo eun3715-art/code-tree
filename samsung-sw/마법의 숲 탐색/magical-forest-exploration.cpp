@@ -1,363 +1,321 @@
-#include <iostream>
-#include <vector>
-#include <set>
-#include <tuple>
-#include <algorithm>
-#include <queue>
+#include<iostream>
+#include<cstdio>
+#include<queue>
+#include<vector>
 
+////////////////////////////////////////////////////////////////
 using namespace std;
-
-///////////////////
-
-int R,C;
-
-int board[80][80]={0};
-
-int dr[4] = {-1,1,0,0};
-int dc[4] = {0,0,-1,1};
-int n=0;
-
-bool visited[80][80]={0};
-
-int answer =0;
-
-
-//////////////////
-
+////////////////////////////////////////////////////////////////
 /*
-내려가다가 내려갈 수 잇는지 체크하는 함수.
-남-서-동 순서대로 매번 체크. 통과하면 바로 return.
-회전 로직 끝나면 바로 정령 이동 로직. dfs로 진행해서 인접한 칸 중. 칸은 바로 max와 비교해서 리턴하고 출구인 곳 && 인접칸이 0이 아니면 옆으로 이동.
-이동조건은 이동하려는 칸이 현재 board값이랑 같거나 //// 음수인데, +101햇을떄 같으면 진행.
-현재 보드가 음수고, 인접한 칸이 0이 아니면 진행.
-보드는 i값 ++ 하면서 골룸 나타내고, 방향칸은 i-101로 한다. i는 최대 100이니까 항상 음수일거고, 판단할때는 101더하면 똑같음.
+0.
+구조체에 골룸의 중간의 행, 열, 인덱스 저장
+
+1. 골렘 내려가기
+-남쪽 가능한지 판단
+-서쪽 가능한지 판단
+-동쪽 가능한지 판단
+-> 남.서.동을 while() 반복. 각 방향마다 continue; 필수
+
+각 방향 판단은 정령잇는 칸 기준으로 모든 초록칸 배열 0인지 판단 & 시계, 반시계 & 그냥 남쪽 세개로 나눠서 돌리면 될듯
+
+다 내려왓으면 골룸의 중간 좌표에 대한 본인이랑, 자기 위가 박인지 안인지 판단 -> 리셋
+
+2. 정령 이동하기
+-보드를 채울떄 각 골룸 인덱스로 채우고, 출구만 -붙여서 채운다.
+- 현재 좌표에서 bfs실행
+-각 bfs마다 그 행을 return해서 max 행 값 갱신
+-옆 좌표의 보드값이 현재 시작점(정령)과 (같은 인덱스 + 음수인 경우 + 현재가 음수인데 옆이 0이 아닌경우) 이 셋만 이동 가능
 
 */
-pair<int,int> direction(int d, int r, int c)
+////////////////////////////////////////////////////////////////
+//변수선언
+int R,C,K;
+
+struct golrum
 {
-    pair<int,int> p;
+    int r,c,d,idx;
+};
+vector<golrum> g;
 
-    if(d==0)
-    {
-        return {r-1,c};
-    }
-    else if(d==1)
-    {
-        return {r,c+1};
-    }
-    else if(d==2)
-    {
-        return {r+1,c};
-    }
-    else if(d==3)
-    {
-        return {r,c-1};
-    }
-    return {0,0};
-}
+int board[80][80];
 
-set<pair<int,int>> area(int r, int c)
-{ 
-    set<pair<int,int>> s;
+//0123 북동남서
+int dr[4] = {-1,0,1,0};
+int dc[4] = {0,1,0,-1};
 
-    s.insert({r,c});
-    
-    for(int j=0; j<4; j++)
-    {
-        int newr=r+dr[j];
-        int newc=c+dc[j];
+int turn;
 
-        s.insert({newr, newc});
-    }
+int visited[80][80];
 
-    return s;
-}
+int ans=0;
 
-set<pair<int,int>> area_w(int r, int c)
+////////////////////////////////////////////////////////////////
+//함수 제작
+
+int move_south()
 {
-    set<pair<int,int>> s;
+    int r = g[turn].r;
+    int c = g[turn].c;
+    int d = g[turn].d;
 
-    s.insert({r,c-2});
-    s.insert({r-1,c-1});
-    s.insert({r+1,c-1});
-    s.insert({r+1,c-2});
-    s.insert({r+2,c-1});
-    return s;
-}
-
-set<pair<int,int>> area_e(int r, int c)
-{
-    set<pair<int,int>> s;
-
-    s.insert({r,c+2});
-    s.insert({r-1,c+1});
-    s.insert({r+1,c+1});
-    s.insert({r+1,c+2});
-    s.insert({r+2,c+1});
-    return s;
-}
-
-set<pair<int,int>> area_s(int r, int c)
-{
-    set<pair<int,int>> s;
-
-    s.insert({r+1,c-1});
-    s.insert({r+1,c+1});
-    s.insert({r+2,c});
-
-    return s;
-}
-
-int can_move(int r, int c, int rotate)
-{
-    set<pair<int,int>> s;
-
-    if(rotate==0)
+    if(r>=R-1)
     {
-        s = area_s(r, c);
+        return 0;
+    }
 
-        for(pair<int,int> p : s)
-        {
-            if(p.first<1 || p.first>R+3 || p.second<1 || p.second>C) return 0;
+    if(board[r+2][c]==0 && board[r+1][c-1]==0 && board[r+1][c+1]==0)
+    {
+        g[turn].r++;
 
-            if(board[p.first][p.second]!=0) return 0;
-        }
         return 1;
     }
 
-    if(rotate==1)
+    return 0;
+}
+
+int move_west()
+{
+    int r = g[turn].r;
+    int c = g[turn].c;
+    int d = g[turn].d;
+
+    if(r>=R-1 || c<=2)
     {
-        s = area_w(r, c);
-
-        for(pair<int,int> p : s)
-        {
-            if(p.first<1 || p.first>R+3 || p.second<1 || p.second>C) return 0;
-
-            if(board[p.first][p.second]!=0) return 0;
-
-        }
-        return 2;
+        return 0;
     }
 
-    if(rotate==2)
+    if(board[r][c-2]==0 && board[r-1][c-1]==0 && board[r+1][c-1]==0 && board[r+1][c-2]==0 && board[r+2][c-1]==0)
     {
-        s = area_e(r, c);
+        g[turn].r++;
+        g[turn].c--;
+        g[turn].d = (g[turn].d+3)%4;
 
-        for(pair<int,int> p : s)
-        {
-            if(p.first<1 || p.first>R+3 || p.second<1 || p.second>C) return 0;
-
-            if(board[p.first][p.second]!=0) return 0;
-
-        }
-        return 3;
+        return 1;
     }
 
     return 0;
 }
 
-void rotate(int rotate, int &r, int &c, int &d, int n)
+int move_east()
 {
-    set<pair<int,int>> s = area(r,c);
+    int r = g[turn].r;
+    int c = g[turn].c;
+    int d = g[turn].d;
 
-    for(pair<int,int> p : s)
+    if(r>=R-1 || c>=C-1)
     {
-        board[p.first][p.second]=0;
+        return 0;
     }
 
-    if(rotate==0)
+    if(board[r][c+2]==0 && board[r-1][c+1]==0 && board[r+1][c+1]==0 && board[r+2][c+1]==0 && board[r+1][c+2]==0)
     {
-        r++;
+        g[turn].r++;
+        g[turn].c++;
+        g[turn].d = (g[turn].d+1)%4;
 
-        set<pair<int,int>> s = area(r,c);
-
-        for(pair<int,int> p : s)
-        {
-            pair<int,int> pp = direction(d, r, c);
-            if(pp==p)
-            {
-                board[p.first][p.second]=n-1001;
-            }
-            else board[p.first][p.second]=n;
-        }
+        return 1;
     }
 
-    if(rotate==1)
-    {
-        r++;
-        c--;
-        d=(d+3)%4;
-
-        set<pair<int,int>> s = area(r,c);
-
-        for(pair<int,int> p : s)
-        {
-            pair<int,int> pp = direction(d, r, c);
-            if(pp==p)
-            {
-                board[p.first][p.second]=n-1001;
-            }
-            else board[p.first][p.second]=n;
-        }
-    }
-
-    if(rotate==2)
-    {
-        r++;
-        c++;
-        d=(d+1)%4;
-
-        set<pair<int,int>> s = area(r,c);
-
-        for(pair<int,int> p : s)
-        {
-            pair<int,int> pp = direction(d, r, c);
-
-            if(pp==p)
-            {
-                board[p.first][p.second]=n-1001;
-            }
-
-            else board[p.first][p.second]=n;
-        }
-    }
-}
-
-int move(int &r, int &c, int &d, int n)
-{
-    for(int rotates=0; rotates<=2; rotates++)
-    {
-        int temp = can_move(r, c, rotates);
-
-        if(!temp)
-        {
-            continue;
-        }
-
-        else
-        {
-            rotate(temp-1, r, c, d, n);
-            return 1;
-        }
-    }
     return 0;
 }
 
-void first(int &r, int &c, int &d, int &n)
+int board_update()
 {
-    int temp=1;
-    n++;
+    int r = g[turn].r;
+    int c = g[turn].c;
+    int d = g[turn].d;
+    int idx = g[turn].idx;
 
-    while(temp)
+    if(r<2)
     {
-        temp = move(r,c,d,n);
+        return 0;
     }
-}
 
-
-////////////////////////
-int dfs(int r, int c)
-{
-    visited[r][c]=true;
-    int best = r;
+    board[r][c]=idx;
 
     for(int i=0; i<4; i++)
     {
-        int newr=r+dr[i];
-        int newc=c+dc[i];
+        int newr = r + dr[i];
+        int newc = c + dc[i];
 
-        if(newr<4 || newr>R+3 || newc < 1 || newc>C)
+        if(i==d)
         {
+            board[newr][newc]=-idx;
             continue;
         }
 
-        int cur = board[r][c];
-        int next = board[newr][newc];
-        
-        if(next==0)
-        {
-            continue;
-        }
-
-        if(visited[newr][newc])
-        {
-            continue;
-        }
-
-        if(cur!=next && cur>0)
-        {
-            if(cur!=next+1001)
-            {
-                continue;
-            }
-        }
-
-        //if(cur==next || ((cur!=next) &&(next<0) && (next+101) == cur) || (cur<0) && next!=cur)
-        //{
-        best = max(best, dfs(newr,newc));
-        
+        board[newr][newc]=idx;
     }
-    return best;
+
+    return 1;
+}
+
+void board_reset()
+{
+    for(int i=1; i<=R; i++)
+    {
+        for(int j=1; j<=C; j++)
+        {
+            board[i][j]=0;
+        }
+    }
+}
+
+int step1()
+{
+    while(1)
+    {
+        if(move_south()==0 && move_west()==0 && move_east()==0)
+        {
+            break;
+        }
+    }
+
+    int tmp = board_update();
+
+    if(tmp==0)
+    {
+        board_reset();
+        return 0;
+    }
+
+    return 1;
 }
 
 
-void second(int r, int c)
+int inrange(int r, int c)
 {
-    for(int i=1; i<=R+3; i++)
+    return(r>=1 && r<=R && c>=1 && c<=C);
+}
+
+void reset_visited()
+{
+    for(int i=1; i<=R; i++)
     {
         for(int j=1; j<=C; j++)
         {
             visited[i][j]=0;
         }
     }
+}
 
-    if(r<5)
+void step2()
+{
+    reset_visited();
+
+    int r = g[turn].r;
+    int c = g[turn].c;
+    int d = g[turn].d;
+    
+    int max_r=r;
+
+    queue<pair<int,int>> q;
+    q.push({r,c});
+
+    visited[r][c]=1;
+
+    while(!q.empty())
     {
-        for(int i=1; i<=R+3; i++)
+        pair<int,int> p = q.front();
+        q.pop();
+
+        int idx = board[p.first][p.second];
+
+        for(int i=0; i<4; i++)
         {
-            for(int j=1; j<=C; j++)
+            int newr = p.first + dr[i];
+            int newc = p.second + dc[i];
+            
+            if(!inrange(newr, newc))
             {
-                board[i][j]=0;
+                continue;
+            }
+
+            if(visited[newr][newc])
+            {
+                continue;
+            }
+
+            if(board[newr][newc]==idx || board[newr][newc]==-idx || (board[p.first][p.second]<0 && board[newr][newc]!=0))
+            {
+                q.push({newr,newc});
+                visited[newr][newc]=1;
+
+                max_r = max(max_r, newr);
             }
         }
-        return;
     }
 
-    int rlt = dfs(r, c);
-
-    answer+=rlt-3;
+    ans+=max_r;
 }
 
 
-int main() 
-{   
-    int K, c, d;
-    int y;
 
-    vector<pair<int,int>> v;
+
+//////////////////////////////////
+
+void cout_board()
+{
+    for(int i=1; i<=R; i++)
+    {
+        for(int j=1; j<=C; j++)
+        {
+            cout << board[i][j] << " ";
+        }
+        cout <<"\n";
+    }
+    cout <<"\n\n";
+}
+
+
+
+
+////////////////////////////////////////////////////////////////
+
+int main(int argc, char** argv)
+{
+    freopen("input.txt", "r", stdin);
+////////////////////////////////////////////////////////////////
+//입력
+    int c,d;
+    
 
     cin >> R >> C >> K;
+    g.resize(K+1);
 
-    for(int i=0; i<K; i++)
+    for(int i=1; i<=K; i++)
     {
-       cin >> c >> d;
-       v.push_back({c,d});
+        cin >> c >> d;
 
+        g[i].r=-1;
+        g[i].c=c;
+        g[i].d=d;
+        g[i].idx=i;
     }
 
-    ////////////////
-    for(int i=0; i<K; i++)
-    {
-        int x = 2;
-        int y=v[i].first;
-        int direct =v[i].second;
 
-        first(x, y, direct, n);
-        
-        second(x, y);
+////////////////////////////////////////////////////////////////
+//출력
+
+
+    for(turn=1; turn<=K; turn++)
+    {
+        int tmp = step1();
+
+        if(tmp==0)
+        {
+            continue;
+        }
+
+        step2();
     }
 
-    cout << answer;
+    cout << ans;
 
-    return 0;
+
+
+////////////////////////////////////////////////////////////////
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
+
