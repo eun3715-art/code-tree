@@ -182,7 +182,7 @@ int cal_dist_near()
     int santa_idx = get<3>(t);
 
     int min_d;
-    long long min_dist=10000000000000;
+    long long min_dist=1e9;
 
     for(int i=0; i<8; i++)
     {
