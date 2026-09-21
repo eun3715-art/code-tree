@@ -1,522 +1,473 @@
-#include <iostream>
-#include <vector>
-#include <set>
-#include <queue>
-#include <tuple>
-#include <algorithm>
-#include <cmath>
+#include<iostream>
+#include<cstdio>
+#include<vector>
+#include<queue>
+#include<tuple>
 
+////////////////////////////////////////////////////////////////
 using namespace std;
-//////////
-int N, M, P,C,D;
-
-struct santa
-{
-    int r;
-    int c;
-    //상하좌우 순서대로 0,1,2,3
-    int d;
-    int state; //0이면 정상, 1이면 기절, -1이면 튕겨나가서 삭제
-    int score;
-};
-
-vector<santa> santas;
-
-struct Roo
-{
-    int r;
-    int c;
-    //상하좌우, 2시, 4시, 8시, 10시 순서대로 0,1,2,3,4,5,6,7
-    int d;
-};
-
-Roo roo;
-
-/// 0이면 빈칸, 1이면 루돌프 위치, 2이면 산타 위치(기절, 정상 다 포함)
-int board[60][60] ={0};
-
-//상하좌우, 2시, 4시, 8시, 10시 순서
-int dr[8] = {-1,1,0,0,-1,1,1,-1};
-int dc[8] = {0,0,-1,1,1,1,-1,-1};
-
-
-int dist[60][60];
-/////////////////
+////////////////////////////////////////////////////////////////
 /*
-step 1 - 루돌푸 움직임 : 매턴먀다 bfs돌려서 8방향 기준으로 dist 업데이트. 동시에 산타잇는 칸 중의 min dist를 수시로 업뎃해서 마지막에 return . 그 최종 좌표와 이동 방향도 함꼐 저장
+산타-구조체로, 위치좌표, 현재 점수, 기절(시작할떄 2로 두고 매번 1씩 감소)값, 죽은 여부
 
-step2 - 산타 움직임 : for문 돌려가면서 struct 애들 순서대로 진행. 그 중에 기절하거나 튕겨난 애들은 취소. 기절여부도 매번 구조체에서 갱신하자. 최종 좌표와 이동 방향도 함꼐 저장
+4. 밀려남
+-밀려남 판정함수
 
-정산ㅇ인 애들만 루돌프와의 bfs dist를 한번 돌린다. 값이 하나 줄어드는 방향 중에서 산타가 없고, 상우하좌 순서로 찾아보고 찾으면 진행. 못찾으면 가만히 잇는다. 그리고 산타 순서대로 진행해서 매번 board 갱신해줘여함
+5. 상호작용
+-1칸씩 밀기
 
-step3 - 충돌 : 산타가 움직일 보드가 1이면 충돌 혹은 루돌프 움직일 곳이 2이면 충독
-c,d점수 획득 후 밀려남. 그리고 격자 밖이라면 바로 s를 -1로 업뎃하고 이제 삭제.
-그곳에 산타잇는 경우느 ㄴ따로 return 
+6. 기절함수
 
-step 4 - 상호작용 : 한칸 씩 그 방향대로 이동 더이상 그 곳에 산타가 존재하지 않을떄까지. 그리고 격자 범위 파악.
+3. 충돌
+- 1,2 둘다 실행 후 이 함수까지 실행해야 함
+- 충돌 시만 점수 ++
+- 산타 상호작용 or 밀려남 판정 함수 호출
+- 기절 함수 호출
 
-step 5- 기절. 충돌한 산타는 다음 턴까지 이동하지 않음. s 갱신. 
+
+
+1. 루돌프 움직임
+- 각 산타와의 거리를 전부 계산하면서 tuple로 (거리, -r, -c) 비교해서 산타선정
+- 정해서 주변 8칸과 해당 산타와의 거리가 가장 가까운 걸 선택해서 이동
+
+2. 산타 움직임
+- 기절값 0, 죽은여부 0 인애들만 순서대로 이동
+- 각 산타마다 bfs로 dist구해서 이동
+
+
+
 
 
 */
-///////////////////////
+////////////////////////////////////////////////////////////////
+//변수선언
+int N,M,P,C,D;
+int Rr, Rc;
 
-//거리 계산 식
-int cal_distance(int r1, int c1, int r2, int c2)
+int board[60][60];
+
+struct santa
 {
-    return (r1-r2)*(r1-r2) + (c1-c2)*(c1-c2);
+    int sr,sc;
+    int die=0;
+    int gijul=0;
+    int score=0;
+};
+vector<santa> S;
+
+//상부터 시계방향
+int dr[8]={-1,-1,0,1,1,1,0,-1};
+int dc[8]={0,1,1,1,0,-1,-1,-1};
+
+int visited[60][60];
+
+////////////////////////////////////////////////////////////////
+//함수 제작
+
+int inrange(int r, int c)
+{
+    return (r>=1 && r<=N && c>=1 && c<=N);
 }
 
-//격자범위
-int cal_max(int r, int c)
+int out(int r, int c, int i)
 {
-    if(r<1 || r>N || c<1 || c>N)
+    if(!inrange(r, c))
     {
-        return 0;
+        S[i].die=1;
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
-///////1단계
-set<tuple<int,int,int>> cal_neareast_santa()
+void intersection(int r, int c, int i, int d)
 {
-    set<tuple<int,int,int>> t;
-
-    for(int i=0; i<P; i++)
+    if(out(r, c, i)==1)
     {
-        if(santas[i].state==-1)
+        return;
+    }
+
+    if(board[r][c]!=0)
+    {
+        int newr = r + dr[d];
+        int newc = c + dc[d];
+        
+        intersection(newr, newc, board[r][c], d);
+    }
+
+    S[i].sr=r;
+    S[i].sc=c;
+    board[r][c]=i;
+}
+
+void gijul(int i)
+{
+    //if(S[i].gijul==0)
+    //{
+        S[i].gijul=2;
+    //}
+}
+
+void collusion(int d, int type, int i)
+{
+    int score, how_move;
+
+    if(type==1)
+    {
+        score=C;
+        how_move=C;
+    }
+    else
+    {
+        score=D;
+        how_move=D;
+    }
+
+    S[i].score+=score;
+
+    int newr = S[i].sr + dr[d]*how_move;
+    int newc = S[i].sc + dc[d]*how_move;
+
+    intersection(newr, newc, i, d);
+
+    gijul(i);
+}
+
+
+void step0()
+{
+    for(int i=1; i<=P; i++)
+    {
+        if(S[i].die==1)
         {
             continue;
         }
 
-        int dist = cal_distance(roo.r, roo.c, santas[i].r, santas[i].c);
-        
-        t.insert({dist, -santas[i].r, -santas[i].c});
+        if(S[i].gijul!=0)
+        {
+            S[i].gijul--;
+        }
+    }
+}
+
+
+int dist_equation(int r1, int c1, int r2, int c2)
+{
+    return (r1-r2)*(r1-r2) + (c1-c2)*(c1-c2);
+}
+
+tuple<int,int,int,int> select_closet_santa()
+{
+    tuple<int,int,int,int> t;
+    t = {10000, 1000, 100,100};
+
+    for(int i=1; i<=P; i++)
+    {
+        if(S[i].die==1)
+        {
+            continue;
+        }
+
+        tuple<int,int,int,int> cur_t = make_tuple(dist_equation(Rr, Rc, S[i].sr, S[i].sc), -S[i].sr, -S[i].sc, i);
+
+        t = min(t, cur_t);
     }
 
     return t;
 }
 
-int step1()
+int cal_dist_near()
 {
-    set<tuple<int,int,int>> s = cal_neareast_santa();
-    
-    ///산타가 없는 거니까 종료
-    if(s.empty())
-    {
-        return -1;
-    }
+    tuple<int,int,int,int> t = select_closet_santa();
 
-    tuple<int,int,int> t = *s.begin();
+    int santa_idx = get<3>(t);
 
-    int fr, fc;
-    int d;
-
-    int dist = 1e9;
+    int min_d;
+    long long min_dist=10000000000000;
 
     for(int i=0; i<8; i++)
     {
-        int newr = roo.r + dr[i];
-        int newc = roo.c + dc[i];
+        int newr = Rr + dr[i];
+        int newc = Rc + dc[i];
 
-        if(!cal_max(newr, newc))
+        if(!inrange(newr,newc))
         {
             continue;
         }
 
-        int now_dist = cal_distance(newr, newc, -get<1>(t), -get<2>(t));
+        long long cur_dist = dist_equation(newr, newc, S[santa_idx].sr, S[santa_idx].sc);
 
-        if(now_dist < dist)
+        if(min_dist > cur_dist)
         {
-            dist = now_dist;
-            fr = newr;
-            fc = newc;
-            d=i;
+            min_dist = cur_dist;
+            min_d=i;
         }
     }
 
-    board[roo.r][roo.c]=0;
-
-    roo.r = fr;
-    roo.c = fc;
-    roo.d = d;
-
-    //산타랑 충돌
-    if(board[roo.r][roo.c]==2)
-    {
-        for(int j=0; j<P; j++)
-        {
-            if(santas[j].r==roo.r && santas[j].c==roo.c)
-            {
-                board[roo.r][roo.c] = 1;
-                return j;
-            }
-        }
-    }
-
-    board[roo.r][roo.c]=1;
-
-    return 31;
+    return min_d;
 }
 
-/////////2단계
-//dist배열 업데이트
-/*
-void bfs1()
+void step1()
 {
-    set<pair<int,int>> s;
+    int min_d = cal_dist_near();
 
-    for(int i=1; i<=N; i++)
+    Rr+=dr[min_d];
+    Rc+=dc[min_d];
+
+    if(board[Rr][Rc]!=0)
     {
-        for(int j=1; j<=N; j++)
-        {
-            dist[i][j]=-1;
-        }
-    }
-
-    queue<pair<int,int>> q;
-
-    q.push({roo.r,roo.c});
-    dist[roo.r][roo.c] = 0;
-
-    while(!q.empty())
-    {
-        pair<int,int> p = q.front();
-
-        int r = p.first;
-        int c = p.second;
-
-        q.pop();
-
-        for(int i=0; i<4; i++)
-        {
-            int newr = r+dr[i];
-            int newc = c+dc[i];
-
-            if(!cal_max(newr, newc))
-            {
-                continue;
-            }
-
-            if(dist[newr][newc]!=-1)
-            {
-                continue;
-            }
-
-            q.push({newr, newc});
-
-            dist[newr][newc] = dist[r][c] +1;
-        }
-    }
-}
-*/
-
-void bfs1()
-{
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            dist[i][j]=-1;
-        }
-    }
-
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            dist[i][j] = cal_distance(roo.r, roo.c, i, j);
-        }
+        collusion(min_d, 1, board[Rr][Rc]);
+        board[Rr][Rc] = 0;
     }
 }
 
 
-int step2(int i)
+int cal_dist_near_2(int r, int c)
 {
-    if(santas[i].state!=0)
+    int min_d=-1;
+    int min_dist = dist_equation(r, c, Rr, Rc);
+
+    for(int i=0; i<8; i+=2)
+    {
+        int newr = r + dr[i];
+        int newc = c + dc[i];
+
+        if(!inrange(newr,newc))
+        {
+            continue;
+        }
+
+        if(board[newr][newc]!=0)
+        {
+            continue;
+        }
+
+        int cur_dist = dist_equation(newr, newc, Rr, Rc);
+
+        if(min_dist > cur_dist)
+        {
+            min_dist = cur_dist;
+            min_d=i;
+        }
+    }
+
+    return min_d;
+}
+
+void step2()
+{
+    for(int i=1; i<=P; i++)
+    {
+        if(S[i].die==1 || S[i].gijul!=0)
+        {
+            continue;
+        }
+
+        int r = S[i].sr;
+        int c = S[i].sc;
+
+        int d = cal_dist_near_2(r, c);
+
+        if(d==-1)
+        {
+            continue;
+        }
+
+        board[S[i].sr][S[i].sc] = 0;
+
+        S[i].sr += dr[d];
+        S[i].sc += dc[d];
+
+        if(S[i].sr==Rr && S[i].sc==Rc)
+        {
+            collusion((d+4)%8, 2, i);
+        }
+
+        else
+        {
+            board[S[i].sr][S[i].sc] = i;
+        }
+    }
+}
+
+void step3()
+{
+    for(int i=1; i<=P; i++)
+    {
+        if(S[i].die==0)
+        {
+            S[i].score++;
+        }
+    }
+}
+
+int step4()
+{
+    int temp=0;
+
+    for(int i=1; i<=P; i++)
+    {
+        if(S[i].die==0)
+        {
+            temp=1;
+        }
+    }
+
+    if(temp==0)
     {
         return 0;
     }
-
-    bfs1();
-
-    int dd[4] = {0,3,1,2};
-
-    int r = santas[i].r;
-    int c = santas[i].c;
-
-    int fr=r;
-    int fc=c;
-    int min_dist=dist[r][c];
-    int d;
-
-    for(int j=0; j<4; j++)
+    return 1;
+}
+/////////////////////////////////////////
+void cout_board()
+{
+    for(int i=1; i<=N; i++)
     {
-        int newr = r + dr[dd[j]];
-        int newc = c + dc[dd[j]];
-
-        if(!cal_max(newr, newc))
+        for(int j=1; j<=N; j++)
         {
-            continue;
+            cout <<board[i][j] << " ";
         }
-
-        if(board[newr][newc]==2)
-        {
-            continue;
-        }
-
-        if(dist[newr][newc] < min_dist)
-        {
-            min_dist = dist[newr][newc];
-
-            fr = newr;
-            fc = newc;
-            d=j;
-        }
+        cout << "\n";
     }
-
-    if(fr == r && fc == c)
-    {
-        return 0;
-    }
-
-    board[santas[i].r][santas[i].c] = 0;
-
-    santas[i].r = fr;
-    santas[i].c = fc;
-    santas[i].d = dd[d];
-
-    //루돌프랑 충돌
-    if(board[santas[i].r][santas[i].c]==1)
-    {
-        return 1;
-    }
-
-    board[santas[i].r][santas[i].c] = 2;
-
-    return 0;
+    cout << "\n\n";
 }
 
-/////////////////////////
-//step3-충돌
-void step3(int i, int a)
+
+void cout_roo()
 {
-    int x;
-    int turn=1;
-    int d = santas[i].d;
+    cout << Rr << " " << Rc <<"\n\n";
+ }
 
 
-    if(a==1)
-    {
-        while(1)
-        {
-            if(turn==1)
-                x=C;
-            else
-                x=1;
 
-            int prevR = santas[i].r; 
-            int prevC = santas[i].c;
+////////////////////////////////////////////////////////////////
 
-            int r = santas[i].r + dr[roo.d] * x;
-            int c = santas[i].c + dc[roo.d] * x;
-            
-            santas[i].r = r;
-            santas[i].c = c;
-
-            if(turn==1)
-            {
-                santas[i].score +=C;
-            }
-
-            if(!cal_max(r, c))
-            {
-                // [수정] turn==1일 때만 루돌프 칸(1)으로 복원. turn>=2에서는 건드리지 않음
-                // (이 칸은 이전 산타가 떠나고 방금 밀려온 산타가 정착하는 '인계' 지점이라 계속 2여야 함)
-                if(turn==1) board[prevR][prevC] = 1;
-                santas[i].state = -1;
-                return;
-            }
-            
-            if(board[r][c]==2)
-            {
-                if(turn==1) board[prevR][prevC] = 1;
-                for(int j=0; j<P; j++)
-                {
-                    // [수정] j!=i 조건 추가: 방금 좌표를 갱신한 자기 자신이 아니라
-                    // 실제로 그 칸에 있던 '다른' 산타를 찾아야 함
-                    if(j!=i && santas[j].r==r && santas[j].c==c)
-                    {
-                        i=j;
-                        break;
-                    }
-                }
-                turn++;
-            }
-
-            else
-            {
-                if(turn==1) board[prevR][prevC] = 1;
-                board[santas[i].r][santas[i].c] = 2;
-                break;
-            }
-
-        }
-    }
-
-    if(a==2)
-    {
-        int ddd[4] = {1,0,3,2};
-
-        while(1)
-        {
-            if(turn==1)
-                x=D;
-            else
-                x=1;
-
-            int prevR = santas[i].r; 
-            int prevC = santas[i].c;
-
-            int r = santas[i].r + dr[ddd[d]] * x;
-            int c = santas[i].c + dc[ddd[d]] * x;
-            
-            santas[i].r = r;
-            santas[i].c = c;
-
-            if(turn==1)
-            {
-                santas[i].score +=D;
-            }
-
-            if(!cal_max(r, c))
-            {
-                if(turn==1) board[prevR][prevC] = 1;
-                santas[i].state = -1;
-                return;
-            }
-            
-            if(board[r][c]==2)
-            {
-                if(turn==1) board[prevR][prevC] = 1;
-                for(int j=0; j<P; j++)
-                {
-                    if(j!=i && santas[j].r==r && santas[j].c==c)
-                    {
-                        i=j;
-                        break;
-                    }
-                }
-                turn++;
-            }
-
-            else
-            {
-                if(turn==1) board[prevR][prevC] = 1;
-                board[santas[i].r][santas[i].c] = 2;
-                break;
-            }
-        }
-    }
-}
-/// 
-
-int main() 
+int main(int argc, char** argv)
 {
-    int Pn, Rr, Rc, Sr, Sc;
+    freopen("input.txt", "r", stdin);
+////////////////////////////////////////////////////////////////
+//입력
     
-    cin >> N >> M >> P >> C >> D;
-    santas.resize(P);
+    int Sr, Sc, Pn;
+
+    cin >> N>>M>>P>>C>>D;
+    S.resize(P+1);
 
     cin >> Rr >> Rc;
-    roo.r = Rr;
-    roo.c=Rc;
 
-    board[Rr][Rc]=1;
-
-
-    for(int i=0; i<P; i++)
+    for(int i=1; i<=P; i++)
     {
         cin >> Pn >> Sr >> Sc;
-        int o = Pn-1;
-        santas[o].r = Sr;
-        santas[o].c = Sc;
-        santas[o].state = 0;
-        santas[o].score = 0;
-        board[Sr][Sc] = 2;
+
+        S[Pn].sr=Sr;
+        S[Pn].sc=Sc;
+
+        board[Sr][Sc]=Pn;
     }
 
-    /////////////////////
 
-    vector<int> v;
+    
 
-    int arr[P];
+////////////////////////////////////////////////////////////////
+//출력
 
-    for(int i=0; i<P; i++)
+    
+   /* for(int i=0; i<80; i++)
     {
-        arr[i]=0;
-    }
+        cerr << "0전" <<"\n\n";
+        step0();
 
-    for(int turn=1; turn<=M; turn++)
-    {
-        v.clear();
+        cerr << "1전" <<"\n\n";
+        step1();
+
+        cerr << "4전" <<"\n\n";
+        if(step4()==0)
+        {
+            break;
+        }
+
+        cerr << "2전" <<"\n\n";
+        step2();
+
+        cout_board();
         
-        for(int i=0; i<P; i++)
+        cerr << "4전" <<"\n\n";
+        if(step4()==0)
         {
-            if(arr[i] == turn && santas[i].state==1)
-            {
-                santas[i].state=0;
-                arr[i]=0;
-            }
+            break;
+        }
+        
+        cerr << "3전" <<"\n\n";
+        step3();
+
+        for(int i=1; i<=P; i++)
+        {
+            cout << S[i].score << " ";
         }
 
-        int one = step1();
-
-        if(one==-1) break;
-
-        //루돌프가 박치기한 경우
-        else if(one!=31)
-        {
-            santas[one].state=1;
-            v.push_back(one);
-
-            step3(one, 1);
-        }
-
-        for(int i=0; i<P; i++)
-        {
-            int two = step2(i);
-            //산타가 박치기
-            if(two==1)
-            {
-                step3(i, 2);
-
-                if(santas[i].state==0)
-                {
-                    santas[i].state=1;
-                    v.push_back(i);
-                }
-            }
-        }
-
-        for(int a : v)
-        {
-            arr[a] = turn + 2;
-        }
-
-        for(int i=0; i<P; i++)
-        {
-            if(santas[i].state!=-1)
-            {
-                santas[i].score++;
-            }
-        }
+        cout <<"\n\n";
     }
 
-    for(int i=0; i<P; i++)
+    cerr << "0전" <<"\n\n";
+        step0();
+
+        cerr << "1전" <<"\n\n";
+        step1();
+
+        cerr << "4전" <<"\n\n";
+
+
+        cerr << "2전" <<"\n\n";
+        step2();
+
+        cout_board();
+        
+        cerr << "4전" <<"\n\n";
+        
+        cerr << "3전" <<"\n\n";
+        step3();
+
+        for(int i=1; i<=P; i++)
+        {
+            cout << S[i].score << " ";
+        }
+
+        cout <<"\n\n";
+    
+    */
+
+
+    
+    for(int i=0; i<M; i++)
     {
-        cout << santas[i].score << " ";
+        step0();
+        step1();
+
+        if(step4()==0)
+        {
+            break;
+        }
+
+        step2();
+
+        if(step4()==0)
+        {
+            break;
+        }
+    
+        step3();
     }
 
-    return 0;
+    for(int i=1; i<=P; i++)
+    {
+        cout << S[i].score << " ";
+    }
+        
+        
+
+
+////////////////////////////////////////////////////////////////
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
+
