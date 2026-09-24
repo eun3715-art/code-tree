@@ -1,64 +1,68 @@
-#include <iostream>
-#include <vector>
-#include <set>
-#include <algorithm>
-#include <queue>
-#include <tuple>
+#include<iostream>
+#include<cstdio>
+#include<cstdlib>
+#include<vector>
+#include<queue>
+#include<tuple>
 
+////////////////////////////////////////////////////////////////
 using namespace std;
+////////////////////////////////////////////////////////////////
+/*
+0. 
+int board - 베이스캠프는 전부 1. 나머지는 0
+int road - 이동못하게는 되는 곳 1로 바꾸기
+player: 구조체로 관리. arrive=1이면 이동x
 
-///////////////
-int N, M;
-// 1 베캠, 0빈칸
+1. 편의점으로 이동
+- 사람 인덱스 순서대로 진행하자. 인덱스가 min(turn, m)
+- 각 사람마다 자기 편의점에서 시작해서 bfs 실행
+- dist 받아서 상좌우하 순서로 한칸 이동 -> 바로 구조체 값 갱신
+-> m번 반복
+
+2. 이동한 후 player 인덱스가 min(turn, m)을 순환하면서 arrive=1은 넘어갓는데, 자기 위치가 자기 편의점에 도달했으면 arrive=1 갱신하고 road도 1로 갱신
+
+3. t<=m이라면 실행됨
+-t번 인덱스의 player가 road와 board보고 가장 가까운 베이스캠프에 들어간다. -> bfs
+P[turn]의 현재 위치를 road 1로 바꾼다.
+
+메인에서 turn ++하면서 도착할 때의 turn이 답이다.
+
+엣지 케이스
+1. n=2, m=1, n=15, m=30일때 각각
+2. n=15고, 베이스캠프가 225-30 일때.
+
+bfs할때 -> 현재 자기 칸이 앞으로 못움직이는 곳일 수도 잇음 : 따라서 최단 거리 구할 때 그냥 자기 주변 4개 중 dist가 제일 적은 곳으로 이동하면 됨
+
+
+*/
+////////////////////////////////////////////////////////////////
+//변수선언
+int N,M;
+
 int board[20][20];
-
-int path[20][20]={0};
-
 int dist[20][20];
+int road[20][20];
 
-struct Eun
+struct player
 {
-    //사람 번호
-    int i;
-    //현재 위치
-    int r=-1;
-    int c=-1;
-
-    int sr;
-    int sc;
-
-    bool end=false;
+    int sr, sc;
+    int er, ec;
+    int arrive=0;
 };
-vector<Eun> eun;
+vector<player> P;
 
+int turn;
 
+//상좌우하
 int dr[4] = {-1,0,0,1};
 int dc[4] = {0,-1,1,0};
 
-vector<pair<int,int>> v;
+int player_count;
 
-int turn = 1;
+////////////////////////////////////////////////////////////////
+//함수 제작
 
-int arrive_count=0;
-
-/*
-베이스캠프는 보드에 -1로 표시(따로 조작)
-
-사람 각각의 순서번호와 현재의 위치를 저장
-
-편의점은 각 순서에 맞게 보드에 저장, 0은 빈칸, -1은 베캠
-
-1. int r,c가 격자 안에 있다면, 각자의 편의점 인덱스에서 역으로 dist배열 갱신 상좌우하 순위로 dist값이 -1이 아니고, dist값이 1만큼 줄어드는 곳으로 이동 -> 지니갈 수 잇는 거리 기준 최단 거리로 이동
-
-2. 편의점에 도달하면 더이상 이동하지 않고 턴 넘긴다. 그리고 그 곳은 path 배열로 갱신
-
-3. t<m일때 베캠으로 이동. 편의점에서 역 bfs 해서 이동가능한 칸 기준 최단거리로 찾는다.set넣어서 맨앞에거 꺼내면 됨. 도달하 -> path 갱신
-
-path갱신은 매턴이 끝날 때마다 갱신. 즉, 바꿔야되는 열 값만 따로 저장해서 매번 넘기고, main에서 처리
-
-*/
-
-////////////////
 void reset_dist()
 {
     for(int i=1; i<=N; i++)
@@ -72,196 +76,149 @@ void reset_dist()
 
 int inrange(int r, int c)
 {
-    if(r<1 || r>N || c<1 || c>N)
-    {
-        return 0;
-    }
-
-    return 1;
+    return (r>=1 && r<=N && c>=1 && c<=N);
 }
 
-void bfs(int i)
+void bfs(int er, int ec)
 {
-    reset_dist();
-
-    int sr = eun[i].sr;
-    int sc = eun[i].sc;
-
-    int cur_r = eun[i].r;
-    int cur_c = eun[i].c;
-
     queue<pair<int,int>> q;
 
-    q.push({sr,sc});
+    q.push({er,ec});
 
-    dist[sr][sc] =0;
+    dist[er][ec]=0;
 
     while(!q.empty())
     {
         pair<int,int> p = q.front();
-
         q.pop();
 
-        int r = p.first;
-        int c = p.second;
-
-        for(int j=0; j<4; j++)
+        for(int i=0; i<4; i++)
         {
-            int newr = r+dr[j];
-            int newc = c+dc[j];
+            int newr = p.first + dr[i];
+            int newc = p.second + dc[i];
 
-            if(!inrange(newr, newc))
+            if(!inrange(newr,newc))
             {
                 continue;
             }
 
-            if(dist[newr][newc]!=-1)
+            if(road[newr][newc]==1 || dist[newr][newc]!=-1)
             {
                 continue;
             }
-
-            if(path[newr][newc]!=0)
-            {
-                if(newr==cur_r && newc==cur_c)
-                {
-                    dist[newr][newc] = dist[r][c] + 1;
-                }
-                continue;
-            }
-
-            dist[newr][newc] = dist[r][c] + 1;
 
             q.push({newr,newc});
+            dist[newr][newc]=dist[p.first][p.second]+1;
         }
     }
 }
 
-
-void bfs1(int i)
+int cal_min_d(int idx)
 {
     reset_dist();
 
-    int sr = eun[i].sr;
-    int sc = eun[i].sc;
+    bfs(P[idx].er, P[idx].ec);
 
-    int cur_r = eun[i].r;
-    int cur_c = eun[i].c;
+    int min_dist=1e9;
+    int min_d=-1;
 
-    queue<pair<int,int>> q;
-
-    q.push({sr,sc});
-
-    dist[sr][sc] =0;
-
-    while(!q.empty())
+    for(int i=0; i<4; i++)
     {
-        pair<int,int> p = q.front();
+        int newr = P[idx].sr + dr[i];
+        int newc = P[idx].sc + dc[i];
 
-        q.pop();
-
-        int r = p.first;
-        int c = p.second;
-
-        for(int j=0; j<4; j++)
+        if(!inrange(newr,newc))
         {
-            int newr = r+dr[j];
-            int newc = c+dc[j];
+            continue;
+        }
 
-            if(!inrange(newr, newc))
-            {
-                continue;
-            }
+        if(road[newr][newc]==1 || dist[newr][newc]==-1)
+        {
+            continue;
+        }
 
-            if(dist[newr][newc]!=-1)
-            {
-                continue;
-            }
-
-            if(path[newr][newc]!=0)
-            {
-                continue;
-            }
-
-            dist[newr][newc] = dist[r][c] + 1;
-
-            q.push({newr,newc});
+        if(dist[newr][newc]<min_dist)
+        {
+            min_dist = dist[newr][newc];
+            min_d=i;
         }
     }
+
+    return min_d;
+
 }
 
-
-
-
-
-
-
-
-pair<int,int> step1(int i)
+void move_one(int idx)
 {
-    int r = eun[i].r;
-    int c = eun[i].c;
+    int min_d = cal_min_d(idx);
 
-    /* main에서 처리하자
-
-    if(eun[i].end)
+    if(min_d==-1)
     {
         return;
     }
-    */
 
-    bfs(i);
-
-    int cur_dist = dist[r][c];
-
-    for(int j=0; j<4; j++)
-    {
-        int newr = r+dr[j];
-        int newc = c+dc[j];
-
-        if(!inrange(newr, newc))
-        {
-            continue;
-        }
-
-        if(dist[newr][newc]==-1)
-        {
-            continue;
-        }
-
-        if(path[newr][newc]==1)
-        {
-            continue;
-        }
-
-        if(dist[newr][newc]==cur_dist-1)
-        {
-            return {newr, newc};
-        }
-    }
-    return {r, c};
+    P[idx].sr+=dr[min_d];
+    P[idx].sc+=dc[min_d];
 }
 
-void step2(int i)
+void step1()
 {
-    int r = eun[i].r;
-    int c = eun[i].c;
+    int idx = min(M, turn);
 
-    int sr = eun[i].sr;
-    int sc = eun[i].sc;
-
-    if(r==sr && c==sc)
+    if(idx==0)
     {
-        eun[i].end = true;
-        path[r][c] = 1; 
-        arrive_count++;
+        return;
+    }
+
+    for(int i=1; i<=idx; i++)
+    {
+        if(P[i].arrive==1)
+        {
+            continue;
+        }
+        reset_dist();
+
+        move_one(i);
     }
 }
 
-set<tuple<int,int,int>> find_basecamp(int i)
+void step2()
 {
-    set<tuple<int,int,int>> s;
+    int idx = min(M, turn);
 
-    bfs1(i);
+    if(idx==0)
+    {
+        return;
+    }
+
+    for(int i=1; i<=idx; i++)
+    {
+        if(P[i].arrive==1)
+        {
+            continue;
+        }
+
+        if(P[i].sr==P[i].er && P[i].sc==P[i].ec)
+        {
+            P[i].arrive=1;
+            road[P[i].er][P[i].ec]=1;
+            player_count--;
+        }
+    }
+}
+
+
+void step3()
+{
+    reset_dist();
+
+    int er = P[turn].er;
+    int ec = P[turn].ec;
+
+    bfs(er,ec);
+
+    int min_d=1e9;
+    int min_i=-1, min_j=-1;
 
     for(int i=1; i<=N; i++)
     {
@@ -272,130 +229,102 @@ set<tuple<int,int,int>> find_basecamp(int i)
                 continue;
             }
 
-            if(path[i][j]==1)
-            {
-                continue;
-            }
-
             if(board[i][j]==1)
             {
-                s.insert({dist[i][j], i,j});
+                if(min_d > dist[i][j])
+                {
+                    min_d = dist[i][j];
+                    min_i=i;
+                    min_j=j;
+                }
             }
         }
     }
 
-    return s;
+    P[turn].sr = min_i;
+    P[turn].sc = min_j;
+    road[min_i][min_j]=1;
 }
 
-void step3(int i)
-{
-    set<tuple<int,int,int>> s = find_basecamp(i);
 
-    if(s.empty())
+//////////////////////////////////////////////////
+void cout_dist()
+{
+    for(int i=1; i<=N; i++)
     {
-        return;
+        for(int j=1; j<=N; j++)
+        {
+            cout << dist[i][j] << " ";
+        }
+        cout << "\n";
     }
-
-    tuple<int,int,int> t = *s.begin();
-
-    eun[i].r = get<1>(t);
-    eun[i].c = get<2>(t);
-
-    path[get<1>(t)][get<2>(t)] = 1;
-
+    cout << "\n\n";
 }
 
 
-int main() 
+
+
+////////////////////////////////////////////////////////////////
+
+int main(int argc, char** argv)
 {
-    int n, x,y;
+    freopen("input.txt", "r", stdin);
+////////////////////////////////////////////////////////////////
+//입력
+
+    int n,r,c;
 
     cin >> N >> M;
-    eun.resize(M+1);
+
+    player_count=M;
+    P.resize(M+1);
 
     for(int i=1; i<=N; i++)
     {
         for(int j=1; j<=N; j++)
         {
             cin >> n;
+
             board[i][j]=n;
         }
     }
 
     for(int i=1; i<=M; i++)
     {
-        cin >> x >> y;
+        cin >> r >> c;
 
-        eun[i].i = i;
-
-        eun[i].sr = x;
-        eun[i].sc = y;
+        P[i].er=r;
+        P[i].ec=c;
     }
 
-    /////////////////
+////////////////////////////////////////////////////////////////
+//출력
 
     while(1)
     {
-        int active_upper = min(turn, M);
+        step1();
+        step2();
 
-        // 1단계: 턴 시작 시점 path 기준으로, 이동중인 사람들의 다음 위치를 전부 "계산만" 해둠
-        vector<pair<int,int>> next_pos(M+1, {-1,-1});
-        for(int i=1; i<=active_upper; i++)
+        if(player_count==0)
         {
-            if(eun[i].end)
-            {
-                continue;
-            }
-
-            if(!inrange(eun[i].r, eun[i].c))
-            {
-                continue;
-            }
-
-            next_pos[i] = step1(i);   // step1이 다음 좌표를 반환하도록 수정 필요 (아래 설명)
+            break;
         }
 
-        // 2단계: 계산된 위치로 동시에 이동 반영
-        for(int i=1; i<=active_upper; i++)
+        if(turn<=M)
         {
-            if(next_pos[i].first != -1)
-            {
-                eun[i].r = next_pos[i].first;
-                eun[i].c = next_pos[i].second;
-            }
-        }
-
-        // 3단계: 도착 처리 (step2), 도착하면 즉시 path 반영
-        for(int i=1; i<=active_upper; i++)
-        {
-            if(eun[i].end)
-            {
-                continue;
-            }
-
-            step2(i);   // step2 내부에서 path[eun[i].r][eun[i].c]=1 즉시 반영하도록 수정 필요
-        }
-
-        if(arrive_count == M)
-        {
-            cout << turn;
-            return 0;
-        }
-
-        // 4단계: t번 사람 베이스캠프 배정 (step3), 즉시 path 반영
-        if(turn <= M)
-        {
-            step3(turn);
-
-            if(arrive_count == M)
-            {
-                cout << turn;
-                return 0;
-            }
+            step3();
         }
 
         turn++;
     }
 
-    return 0;
+    cout << turn;
+    
+
+
+
+////////////////////////////////////////////////////////////////
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
+
