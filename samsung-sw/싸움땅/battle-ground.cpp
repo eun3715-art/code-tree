@@ -1,331 +1,334 @@
-#include <iostream>
-#include <vector>
-#include <set>
-#include <algorithm>
-#include <queue>
-#include <tuple>
-#include <cmath>
+#include<iostream>
+#include<cstdio>
+#include<cstdlib>
+#include<set>
+#include<vector>
+#include<queue>
+#include<tuple>
+#include<algorithm>
 
+////////////////////////////////////////////////////////////////
 using namespace std;
+////////////////////////////////////////////////////////////////
+/*
 
-///////////////
+0.
+multiset<int> board[][] - 총 공격력을 insert로 누적. 맨 앞만 항상 뽑으면 됨 
+player - 인덱스.
+struct player - 각 플레이어의 위치, 가지고 있는 총 공격력 : 없을떄는 항상 0
+
+-> 제일 강한 거 교환할 때는 일단 그 보드에 자기 총을 넣고 그 다음 begin 꺼내서 자기꺼에다가 복사하고 set은 erase(s.begin())
+
+1. 해당 플레이어 한칸 이동(방향 전환)
+
+
+2. 싸우기
+- 둘의 pair(초기능력치+총, 초기 플레이어) winner,loser 정하고 각 포인트 ++
+- 진 플레이어: 총 내려놓고, 90도씩 회전하면서 이동
+            이동한 후, 총이 있다면 가장 공격력 높은 총으로. 나머지는 버리기
+-이긴 플레이어: 그 칸에 떨어져잇는 총들과 원래 총 중 가장 높은 총으로
+
+
+3. 이동한 칸에 플레이어인지 아닌지(총이 잇는지 빈칸인지)
+-총인 경우 : 가장 공격력 센 총 get & 나머지 총 내려놓기
+-빈칸인 경우 : 그냥 넘어가기
+-플레이어인 경우 싸우기
+
+edge case:
+-1. 500라운드, n=20
+-2. 1라운드, n=2
+-3. n=6, m=30
+-4. n=2, m=4 && 총이 애초에 하나도 없을때
+-5. m=1일때
+
+
+*/
+////////////////////////////////////////////////////////////////
+//변수선언
 int N,M,K;
 
-//0 빈칸, 나머지 총. 개수는. size로
-vector<vector<multiset<int, greater<int>>>> board;
-
-vector<int> score;
-
-struct play
-{
-    int r,c,d;
-    int i;
-    int force;
-    int gun;
-};
-vector<play> p;
-
-int dr[4] = {-1,0,1,0};
-int dc[4] = {0,1,0,-1};
+multiset<int, greater<int>> board[25][25];
 
 int player[25][25];
 
-int winner, loser;
-
-//////////////////////
-/*
-0. 플레이어 순서, 사람의 위치, d, 초기능력치, 총능력치를 구조체로 저장
-0. 멀티셋에 총들 저장. 0은 빈칸. 1~ 값은 다 총이고, 총이없으면 0으로 업뎃하고, 총 여러개면 set하나하나에 여러개 담으면 됨
-
-1번부터 실행
-1. 방향 맞춰서 한칸이동. 격자에 걸리면 정반대로 변환.
-2. 플레이어가 잇는지, 빈칸인지 총인지 경우 나눔. 
-2-1빈칸이면 바로 다음 넘김. 총이면 제일 큰 애로 구조체의 총값 변경해주고, 필요없으면 변경안함. 그리고 자기 들고잇던 총 멀티셋에 insert
-2-2 플레이어가 잇으면 싸움. 능력치 비교. 
--> 이긴 애 로직. 능력차이만큼 포인트 따로 벡터에 계산. 그리고 총 get
--> 진 애 로직. 자기 총 버리고 한칸 이동. 오른쪽 90도 꺾어가면서 플레이어없고, 격자 내로 전진. 그중 빈칸이면 return, 총이 잇으면 총 get
-
-*/
-
-/////////////
-//정반대
-int turn180(int d)
+struct Player
 {
-    int direct[4] = {2,3,0,1};
+    int r,c,d,s;
+    int score=0;
+    int gun=0;
+};
+vector<Player> P;
 
-    return direct[d];
-}
+int dr[4]={-1,0,1,0};
+int dc[4]={0,1,0,-1};
 
-int turn90(int d)
-{
-    int direct[4] = {1,2,3,0};
 
-    return direct[d];
-}
+////////////////////////////////////////////////////////////////
+//함수 제작
 
 int inrange(int r, int c)
 {
-    if(r<1 || r>N || c<1 || c>N)
-    {
-        return 0;
-    }
-    return 1;
-}
-
-int find_player(int r, int c)
-{
-    for(int i=1; i<=M; i++)
-    {
-        if(p[i].r == r && p[i].c == c)
-        {
-            return i;
-        }
-    }
-}
-
-int move(int i)
-{
-    int d = p[i].d;
-    int r = p[i].r;
-    int c = p[i].c;
-
-    int newr = r + dr[d];
-    int newc = c + dc[d];
-    int newd = d;
-
-    int num=0;
-
-    if(!inrange(newr, newc))
-    {
-        newd = turn180(d);
-        newr = r + dr[newd];
-        newc = c + dc[newd];
-    }
-
-    if(player[newr][newc]!=0)
-    {
-        num = find_player(newr, newc);
-    }
-
-    player[p[i].r][p[i].c]--;
-
-    p[i].r = newr;
-    p[i].c = newc;
-    p[i].d = newd;
-
-    player[p[i].r][p[i].c]++;
-
-    //다른 플레이어가 잇는 경우
-    if(num!=0)
-    {
-        return num;
-    }
-
-    int n = *board[newr][newc].begin();
-
-    //빈칸인 경우
-    if(n==0)
-    {
-        return 0;
-    }
-
-    //총이 잇는 경우
-    else
-    {
-        return -1;
-    }
-}
-
-void get_gun(int i)
-{
-    int gun1 = p[i].gun;
-    int gun2 = *board[p[i].r][p[i].c].begin();
-
-    multiset<int, greater<int>>::iterator it = board[p[i].r][p[i].c].find(gun2);
-
-    if(gun1==0)
-    {
-        p[i].gun = gun2;
-        board[p[i].r][p[i].c].erase(it);
-        return;
-    }
-
-    if(gun1 >= gun2)
-    {
-        return;
-    }
-
-    else
-    {
-        p[i].gun = gun2;
-        board[p[i].r][p[i].c].erase(it);
-        board[p[i].r][p[i].c].insert(gun1);
-    }
-}
-
-int fight(int i, int j)
-{
-    set<pair<int,int>> s;
-
-    int f1 = p[i].force + p[i].gun;
-    s.insert({-f1, -p[i].force});
-
-    int f2 = p[j].force + p[j].gun;
-    s.insert({-f2, -p[j].force});
-
-    pair<int,int> pp = *s.begin();
-
-    int rlt = -pp.second;
-
-    if(rlt == p[i].force)
-    {
-        winner = i;
-        loser = j;
-    }
-    else
-    {
-        winner = j;
-        loser = i;
-    }
-
-    //0이 아니라면
-    if(p[loser].gun!=0)
-    {
-        board[p[loser].r][p[loser].c].insert(p[loser].gun);
-        p[loser].gun=0;
-    }
-
-    return abs(f1-f2);
-}
-
-void winner_(int n)
-{
-    score[winner]+=n;
-
-    int greatest = *board[p[winner].r][p[winner].c].begin();
-
-    if(greatest==0)
-    {
-        return;
-    }
-
-    get_gun(winner);
-}
-
-void loser_()
-{
-    int r = p[loser].r;
-    int c = p[loser].c;
-    int d = p[loser].d;
-
-    for(int k=0; k<4; k++)
-    {
-        int newr = r + dr[d];
-        int newc = c + dc[d];
-
-        if(inrange(newr, newc)==1 && player[newr][newc]==0)
-        {
-            player[p[loser].r][p[loser].c]--;
-            p[loser].r =newr;
-            p[loser].c =newc;
-            p[loser].d =d;
-            player[p[loser].r][p[loser].c]++;
-
-            int greatest = *board[newr][newc].begin();
-            
-            if(greatest!=0)
-            {
-               get_gun(loser);
-            }
-
-            return;
-        }
-
-        d = turn90(d);
-    }
-}
-
-void step2(int i, int j)
-{
-    int n = fight(i,j);
-    loser_();
-    winner_(n);
+    return (r>=1 && r<=N && c>=1 && c<=N);
 }
 
 void step1(int i)
 {
-    int n = move(i);
+    int r = P[i].r;
+    int c = P[i].c;
+    int d = P[i].d;
 
-    if(n==0)
+    int newr = r + dr[d];
+    int newc = c + dc[d];
+
+    int newd = d;
+
+    if(!inrange(newr,newc))
+    {
+        newd = (d+2)%4;
+        newr = r + dr[newd];
+        newc = c + dc[newd];
+    }
+
+    player[r][c]=0;
+
+    P[i].r=newr;
+    P[i].c=newc;
+    P[i].d=newd;
+}
+
+void not_fight(int i)
+{
+    int r = P[i].r;
+    int c = P[i].c;
+    int d = P[i].d;
+    int gun = P[i].gun;
+
+    int max_gun = *board[r][c].begin();
+
+    //빈칸이면 그냥 종료
+    if(max_gun==0)
     {
         return;
     }
 
-    else if(n==-1)
+    if(gun!=0)
     {
-        get_gun(i);
+        board[r][c].insert(gun);
+    }
+
+    max_gun = *board[r][c].begin();
+
+    board[r][c].erase(board[r][c].begin());
+    
+    P[i].gun = max_gun;
+}
+
+pair<int,int> fight(int i, int j)
+{
+    int r1 = P[i].r;
+    int c1 = P[i].c;
+    int d1 = P[i].d;
+    int s1 = P[i].s;
+    int gun1 = P[i].gun;
+
+    int r2 = P[j].r;
+    int c2 = P[j].c;
+    int d2 = P[j].d;
+    int s2 = P[j].s;
+    int gun2 = P[j].gun;
+
+    tuple<int,int,int> t1 = {s1+gun1, s1, i};
+    tuple<int,int,int> t2 = {s2+gun2, s2, j};
+
+    int winner = get<2>(max(t1,t2));
+    int loser = get<2>(min(t1,t2));
+
+    P[winner].score += abs(get<0>(t1) - get<0>(t2));
+
+    return {winner, loser};
+}
+
+void winner(int i)
+{
+    not_fight(i);
+    player[P[i].r][P[i].c]=i;
+}
+
+void loser_d(int i)
+{
+    int r = P[i].r;
+    int c = P[i].c;
+    int d = P[i].d;
+    int gun = P[i].gun;
+
+    if(gun!=0)
+    {
+        board[r][c].insert({gun});
+        P[i].gun=0;
+    }
+
+    int newr,newc;
+
+    while(1)
+    {
+        newr = r + dr[d];
+        newc = c + dc[d];
+
+        if(!inrange(newr,newc) || player[newr][newc]!=0)
+        {
+            d=(d+1)%4;
+            continue;
+        }
+
+        break;
+    }
+
+    P[i].r = newr;
+    P[i].c = newc;
+    P[i].d = d;
+
+    player[P[i].r][P[i].c]=i;
+}
+
+void loser(int i)
+{
+    loser_d(i);
+    not_fight(i);
+}
+
+void step2(int i)
+{
+    int r = P[i].r;
+    int c = P[i].c;
+    int d = P[i].d;
+
+    if(player[r][c]==0)
+    {
+        not_fight(i);
+        player[P[i].r][P[i].c]=i;
     }
 
     else
     {
-        step2(i, n);
+        int j = player[r][c];
+
+        pair<int,int> p = fight(i, j);
+
+        loser(p.second);
+        winner(p.first);
+
     }
 }
 
-//////////////////////////
 
-int main() 
+
+
+
+///////////////////////////////////////////////////////////////
+
+void cout_board()
 {
-    int x,y,d,s,n;
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            for(int k : board[i][j])
+            {
+                cout << k << ",";
+            }
+            cout << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_player()
+{
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            cout << player[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_P()
+{
+    for(int i=1; i<=M; i++)
+    {
+        cout << P[i].r << " " << P[i].c << " " << P[i].d << " " << P[i].s << " " << P[i].gun << "\n";
+    }
+    cout << "\n\n";
+}
+
+
+////////////////////////////////////////////////////////////////
+
+int main(int argc, char** argv)
+{
+    freopen("input.txt", "r", stdin);
+////////////////////////////////////////////////////////////////
+//입력
+    int n;
+    int r,c,d,s;
 
     cin >> N >> M >> K;
+    P.resize(M+1);
 
-    board.assign(N+1,vector<multiset<int, greater<int>>>(N+1));
-    p.resize(M+1);
-    
-    score.resize(M+1);
+    for(int i=1; i<=N; i++)
+    {
+        for(int j=1; j<=N; j++)
+        {
+            board[i][j].insert({0});
+        }
+    }
 
     for(int i=1; i<=N; i++)
     {
         for(int j=1; j<=N; j++)
         {
             cin >> n;
-            board[i][j].insert(n);
+            board[i][j].insert({n});
         }
     }
 
     for(int i=1; i<=M; i++)
     {
-        cin >> x >> y >> d >> s;
+        cin >> r >> c >> d >> s;
 
-        p[i].i = i;
-        p[i].r = x;
-        p[i].c = y;
-        p[i].d = d;
-        p[i].force = s;
-        p[i].gun = 0;
+        P[i].r=r;
+        P[i].c=c;
+        P[i].d=d;
+        P[i].s=s;
 
-        player[x][y]++;
+        player[r][c]=i;
     }
 
+////////////////////////////////////////////////////////////////
+//출력
 
-
-    /////////////////////////
-
-
-    for(int k=0; k<K; k++)
+    for(int i=0; i<K; i++)
     {
-        for(int i=1; i<=M; i++)
-        {
-            step1(i);
+        for(int j=1; j<=M; j++)
+        {   
+            step1(j);
+            step2(j);
         }
     }
 
     for(int i=1; i<=M; i++)
     {
-        cout << score[i] << " ";
+        cout << P[i].score << " ";
     }
-    
 
-    return 0;
+
+
+////////////////////////////////////////////////////////////////
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
+
