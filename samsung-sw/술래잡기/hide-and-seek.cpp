@@ -1,195 +1,370 @@
-#include <iostream>
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+#include <cstdio>
+#include <cstdlib>
 #include <vector>
-#include <cmath>
+#include <queue>
 #include <algorithm>
 
+
+//////////////////////////////////////////////
 using namespace std;
 
+/////////////////////////////////////////////
+//변수 선언
+
+
+/*
+0.
+board : 0 빈칸, 1 나무
+vector<int> v[][]로 도망자 인덱스를 누적
+구조체 : 도망자 각각의 방향 저장
+
+
+1. 도망자 이동
+- 구조체 순환하면서 규칙대로 이동
+- 거리 3이하인 애들만
+-  die=0인 애들만
+- vector<int> 업뎃
+
+2. 술래 이동 
+- 방향을 상우하좌 순서대로 0123. 해놓자
+- 칸을 미리 다 저장해놓자 순서대로. vecto<int> 에 처음부터 끝까지 이동방향을 순서대로 저장해놓자
+- 끝에 도달하면 각 이동방향에 +2%4 하면 됨. 다시 중앙에 도착하면 +2%4하기.
+- 다음 이동방향으로 시선방향 업뎃하기
+- 술래 좌표 갱신
+
+
+3. 술래 잡기
+- 그 시선대로 3칸 중 나무가 아닌 애들 잡아서 점수 갱신
+- 격자 안넘어가게
+- 잡힌 애들은 구조체에서 die=1로 갱신
+
+엣지 케이스
+1. n=5, m=1, h=1, k=1.
+2. n=99, m=99제곱-1, h=99제곱, k=100.
+3. 도망자끼리 겹칠떄 이동 잘 되는지, 그리고 그 칸이 잡혓을때 점수갱신 잘 되는지
+4. 술래 방향전환 잘 되는지. 마지막에 방향 업뎃 잘 되는지
+5. 나무에서 안 잡히는지
+6. 술래 3칸이 격자 범위 안넘도록 잘되는지
+7. main에서 테케마다 초기화 잘하기
+*/
+
+
 int N, M, H, K;
-int board[105][105]; // 1: 나무 있음
 
-// 상(0), 우(1), 하(2), 좌(3)
-int dr[4] = {-1, 0, 1, 0};
-int dc[4] = {0, 1, 0, -1};
+int board[110][110];
+vector<int> runner[110][110];
 
-struct Runner {
-    int r, c, d; // 0~3 (상우하좌)
-    bool is_dead = false;
+int sr, sc, sd;
+
+
+
+struct Runner
+{
+    //1이 우, 2가 하, 3은 좌, 0이 상 -> 상우하좌 순서로 d를 갱신
+    int r,c,d;
+    int die = 0;
 };
+vector<Runner> R;
 
-vector<Runner> runners;
+int dr[4] = { -1,0,1,0 };
+int dc[4] = { 0,1,0,-1 };
 
-int seeker_r, seeker_c, seeker_d = 0;
-int seeker_idx = 0;
+vector<int> dir_v;
 
-struct SeekerPath {
-    int r, c, d;
-};
-vector<SeekerPath> seeker_paths; // 전체 1주기 경로 저장 (정방향 + 역방향)
+int turn;
 
-bool inrange(int r, int c) {
+int cur_turn;
+
+int score;
+
+//////////////////////////////////////////////////////////////
+
+
+
+int inrange(int r, int c)
+{
     return (r >= 1 && r <= N && c >= 1 && c <= N);
 }
 
-// 술래 경로 전체 (정방향 + 역방향 1주기) 생성
-void init_seeker_path() {
-    // 1) 정방향: (N/2+1, N/2+1) -> (1, 1)
-    int r = N / 2 + 1;
-    int c = N / 2 + 1;
-    int d = 0; // 상
-    int move_len = 1;
 
-    while (true) {
-        for (int i = 0; i < 2; i++) {
-            for (int m = 0; m < move_len; m++) {
-                r += dr[d];
-                c += dc[d];
+void cal_dir_v()
+{
+    int newr = sr;
+    int newc = sc;
 
-                int next_d = d;
-                // 이동하려는 칸이 코너(거리 끝)인 경우 미리 방향을 틀어놓음
-                if (m == move_len - 1) {
-                    next_d = (d + 1) % 4;
-                }
+    int d = 0;
 
-                // (1, 1) 도착 시 바로 하(2) 방향으로 전환
-                if (r == 1 && c == 1) {
-                    next_d = 2;
-                    seeker_paths.push_back({r, c, next_d});
-                    goto OUT_FORWARD;
-                }
+    int s = 2;
 
-                seeker_paths.push_back({r, c, next_d});
+    int temp = 0;
+
+    while (temp == 0)
+    {
+        int round = s / 2;
+
+        for (int i = 0; i < round; i++)
+        {
+            newr += dr[d];
+            newc += dc[d];
+
+            if (!inrange(newr, newc))
+            {
+                temp = 1;
+                break;
             }
-            d = (d + 1) % 4;
+
+            dir_v.push_back({ d });
         }
-        move_len++;
+
+        d = (d + 1) % 4;
+
+        s++;
     }
-OUT_FORWARD:;
 
-    // 2) 역방향: (1, 1) -> (N/2+1, N/2+1)
-    // 방향 패턴: 하(2) -> 우(1) -> 상(0) -> 좌(3)
-    r = 1; c = 1; d = 2;
-    move_len = N - 1;
+    vector<int> reverse_dir_v = dir_v;
 
-    while (true) {
-        for (int i = 0; i < (move_len == N - 1 ? 3 : 2); i++) {
-            for (int m = 0; m < move_len; m++) {
-                r += dr[d];
-                c += dc[d];
+    reverse(reverse_dir_v.begin(), reverse_dir_v.end());
 
-                int next_d = d;
-                if (m == move_len - 1) {
-                    next_d = (d + 3) % 4; // 역방향 시계 반대 회전
-                }
 
-                // 정중앙 도착 시 바로 상(0) 방향으로 전환
-                if (r == N / 2 + 1 && c == N / 2 + 1) {
-                    next_d = 0;
-                    seeker_paths.push_back({r, c, next_d});
-                    goto OUT_BACKWARD;
-                }
-
-                seeker_paths.push_back({r, c, next_d});
-            }
-            d = (d + 3) % 4;
-        }
-        move_len--;
+    for (int a = 0; a < reverse_dir_v.size(); a++)
+    {
+        reverse_dir_v[a] = (reverse_dir_v[a] + 2) % 4;
     }
-OUT_BACKWARD:;
-}
 
-// 1. 도망자 이동
-void move_runners() {
-    for (auto &runner : runners) {
-        if (runner.is_dead) continue;
-
-        int dist = abs(seeker_r - runner.r) + abs(seeker_c - runner.c);
-        if (dist > 3) continue;
-
-        int nr = runner.r + dr[runner.d];
-        int nc = runner.c + dc[runner.d];
-
-        // 격자를 벗어나면 방향 180도 전환
-        if (!inrange(nr, nc)) {
-            runner.d = (runner.d + 2) % 4;
-            nr = runner.r + dr[runner.d];
-            nc = runner.c + dc[runner.d];
-        }
-
-        // 이동하려는 칸에 술래가 있으면 이동 안 함
-        if (nr == seeker_r && nc == seeker_c) continue;
-
-        runner.r = nr;
-        runner.c = nc;
+    for (int a : reverse_dir_v)
+    {
+        dir_v.push_back(a);
     }
 }
 
-// 2. 술래 이동
-void move_seeker() {
-    seeker_r = seeker_paths[seeker_idx].r;
-    seeker_c = seeker_paths[seeker_idx].c;
-    seeker_d = seeker_paths[seeker_idx].d;
 
-    seeker_idx = (seeker_idx + 1) % seeker_paths.size();
+void step0()
+{
+    cal_dir_v();
 }
 
-// 3. 도망자 잡기
-int catch_runners(int turn_num) {
-    int caught_count = 0;
-
-    for (int step = 0; step < 3; step++) {
-        int check_r = seeker_r + dr[seeker_d] * step;
-        int check_c = seeker_c + dc[seeker_d] * step;
-
-        if (!inrange(check_r, check_c)) break;
-        if (board[check_r][check_c] == 1) continue; // 나무가 있는 칸은 가려짐
-
-        for (auto &runner : runners) {
-            if (!runner.is_dead && runner.r == check_r && runner.c == check_c) {
-                runner.is_dead = true;
-                caught_count++;
-            }
-        }
-    }
-
-    return turn_num * caught_count;
+int cal_dist(int r1, int c1, int r2, int c2)
+{
+    return abs(r1 - r2) + abs(c1 - c2);
 }
 
-int main() {
-    ios_base::sync_with_stdio(false);
-    cin.tie(NULL);
-
-    cin >> N >> M >> H >> K;
-
-    seeker_r = N / 2 + 1;
-    seeker_c = N / 2 + 1;
-    seeker_d = 0;
-
-    for (int i = 0; i < M; i++) {
-        int r, c, d;
-        cin >> r >> c >> d;
-        // d == 1: 좌우 (우측=1 시작), d == 2: 상하 (아래쪽=2 시작)
-        int initial_dir = (d == 1) ? 1 : 2;
-        runners.push_back({r, c, initial_dir, false});
+int must_move(int i)
+{
+    if (R[i].die == 0 && cal_dist(R[i].r, R[i].c, sr, sc) <= 3)
+    {
+        return 1;
     }
-
-    for (int i = 0; i < H; i++) {
-        int r, c;
-        cin >> r >> c;
-        board[r][c] = 1; // 나무 위치
-    }
-
-    init_seeker_path();
-
-    int total_score = 0;
-
-    for (int t = 1; t <= K; t++) {
-        move_runners();
-        move_seeker();
-        total_score += catch_runners(t);
-    }
-
-    cout << total_score << "\n";
 
     return 0;
+}
+
+
+
+void move_one(int i)
+{
+    int newr = R[i].r + dr[R[i].d];
+    int newc = R[i].c + dc[R[i].d];
+
+    if (inrange(newr, newc))
+    {
+        if (newr == sr && newc == sc)
+        {
+            return;
+        }
+
+        runner[R[i].r][R[i].c].erase(remove(runner[R[i].r][R[i].c].begin(), runner[R[i].r][R[i].c].end(), i), runner[R[i].r][R[i].c].end());
+        R[i].r = newr;
+        R[i].c = newc;
+        runner[R[i].r][R[i].c].push_back(i);
+    }
+
+    else
+    {
+        R[i].d = (R[i].d + 2) % 4;
+
+        move_one(i);
+    }
+}
+
+void step1()
+{
+    for (int i = 1; i <= M; i++)
+    {
+        if (must_move(i))
+        {
+            move_one(i);
+        }
+    }
+}
+
+
+
+void step2()
+{
+    sr += dr[dir_v[cur_turn]];
+    sc += dc[dir_v[cur_turn]];
+
+    if (cur_turn!=0 && (cur_turn % (2 * N*N - 3) == 0))
+    {
+        cur_turn = -1;
+    }
+
+    sd = dir_v[cur_turn + 1];
+}
+
+
+void catch_runner (int r, int c)
+{
+    int num = 0;
+
+    for (int i : runner[r][c])
+    {
+        if (i == 0)
+        {
+            continue;
+        }
+
+        R[i].die = 1;
+        num++;
+    }
+
+    runner[r][c].clear();
+    runner[r][c].push_back(0);
+
+    score += ((turn + 1)*num);
+}
+
+void step3()
+{
+    for (int i = 0; i < 3; i++)
+    {
+        int newr = sr + dr[sd]*i;
+        int newc = sc + dc[sd]*i;
+
+        if (!inrange(newr, newc))
+        {
+            continue;
+        }
+
+        if (board[newr][newc] == 0 && runner[newr][newc].size() > 1)
+        {
+            catch_runner(newr,newc);
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////
+
+void cout_runner()
+{
+    for (int i = 1; i <= N; i++)
+    {
+        for (int j = 1; j <= N; j++)
+        {
+            for (int a : runner[i][j])
+            {
+                cout << a << ",";
+            }
+            cout << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_dir_v()
+{
+    for (int p : dir_v)
+    {
+        cout << p << "\n";
+    }
+    cout << "\n\n";
+}
+
+
+void cout_board()
+{
+    for (int i = 1; i <= N; i++)
+    {
+        for (int j = 1; j <= N; j++)
+        {
+            cout << board[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+//////////////////////////////////////////////////////////////////////
+int main(int argc, char** argv)
+{
+    int test_case;
+    int T;
+
+
+        int x, y, d;
+        int x1, y1;
+        
+        cin >> N >> M >> H >> K;
+
+        sr = N / 2 + 1;
+        sc = N / 2 + 1;
+        sd = 0;
+        score = 0;
+        turn = 0;
+
+        R.resize(M + 1);
+
+        for (int i = 1; i <= N; i++)
+        {
+            for (int j = 1; j <= N; j++)
+            {
+                runner[i][j].push_back(0);
+            }
+        }
+
+        for (int i = 1; i <= M; i++)
+        {
+            cin >> x >> y >> d;
+            R[i].r = x;
+            R[i].c = y;
+            R[i].d = d;
+            runner[x][y].push_back(i);
+        }
+
+
+
+        for (int i = 0; i < H; i++)
+        {
+            cin >> x1 >> y1;
+
+            board[x1][y1] = 1;
+        }
+
+
+
+        ///////////////////////////////////////////////////////
+
+        //cur_turn 같이 더하기
+
+        step0();
+        
+        for (turn = 0; turn < K; turn++)
+        {
+            step1();
+            step2();
+            step3();
+
+            cur_turn++;
+        }
+        cout << score;
+
+    
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
