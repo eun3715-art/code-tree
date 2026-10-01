@@ -1,366 +1,468 @@
-#include <iostream>
+
+#include<iostream>
 #include <vector>
-#include <tuple>
-#include <set>
-#include <algorithm>
 
-/////////////////////////////////////
+//////////////////////////////////////////////////////
 using namespace std;
-/////////////////////////////////////
-int M, T;
-
-int pr;
-int pc;
-
-int board[5][5];
-
-struct Monster
-{
-    int r,c;
-    int d;
-};
-vector<Monster> monster;
-
-struct Egg
-{
-    int r,c;
-    int d;
-};
-vector<Egg> egg;
-
-struct Dead
-{
-    int r,c;
-    int age;
-};
-vector<Dead> die;
-
-int dr[8] = {-1,-1,0,1,1,1,0,-1};
-int dc[8] = {0,-1,-1,-1,0,1,1,1};
-
-
-int pdr[4] = {-1,0,1,0};
-int pdc[4] = {0,-1,0,1};
-
-int dead_board[5][5];
-
-bool visited[5][5];
-
-/////////////////////////////////////
+//////////////////////////////////////////////////////
 
 /*
-0. 초기화
-board  -  0빈칸, -1 시체, 0외의 다른 건 그 칸의 몬스터 개수
-구조체 - 몬스터 위치, 방향, 
-구조체 - 알 생길 떄마다 그 알의 구조체를 만들고, 위치 저장
+0.
+-board : 0 빈칸, -값 시체
+-monster : 각 몬스터의 방향을 누적한다.
 
-1. 몬스터 복제
--현재 자신 칸에 알 낳기 (구조체 백터 하나 푸쉬백)
-각 푸쉬백할 떄 알 초기화하는 함수 만들어서 실행
+1.몬스터 복제 시도
+-이중포문 돌면서 진행
+-구조체랑 똑같은 인덱스로 똑같이 egg배열에 누적해서 만든다.
 
-2. 몬스터 이동
--board가 1이거나 격자 넘어가거나 팩맨이 잇으면 반시계로 방향 회전 찾을 떄까지 8번 for문 실행.
--> 찾으면 그때의 방향으로 갱신하고 반환. 없으면 -1 반환
--반환 받은 값으로 이동(좌표 갱신)
+2.몬스터 이동
+- 이중포문 돌면서 누적 신경써거 next_monster에 이동하고 한번에 복사하기
+-board=0, 팩맨없고, 격자 안인 경우만 이동
 
-3. 팩맨 이동
--64칸에 대해서 각각 bfs진행. set에 (-먹이수, 상(0), 좌(1), 하(2), 우(3) 순서로 인덱스로 변경해서 담는다.)
--set앞에꺼 뽑아서 해당 칸에 하나씩 전진하고, 해당칸에 몬스터 잇으면 먹음, board값 1로 바꿈.
--먹힌 애들은 2차원 벡터에 age 0으로 저장
 
-4. 턴마다 age하나씩 추가하고 2가 된 애들은 board 0으로 바꿈
+3.팩맨 이동
+- 64가지 경우 전부 시작. 순서는 상좌하우 순위대로 만들고 갱신하자
+- 격자 안인 경우만
+- 각 경우에 대해 monster.size() 체크하자
+-알은 안먹고 처음 위치도 안먹고, 이동방향에 잇던애들은 전부 먹는다. -> clear처리하자
+- 시체 생긴 칸은 board를 -3로 만들기
 
-5. 알 부화
+
+4.몬스터 시체 소멸
+- -인 애들 ++ 해주기.
+
+5.몬스터 복제 완성
+egg애들 똑같이 누적 ++해주기
+
+
+edge:
+1. m=10, t=25
+2. 팩맨 초기 위치랑 몬스터가 겹칠때
+3. 몬스터가 하나 있을때
+4. 몬스터 이동할 곳 없을 때 가만히 잇는지
+5. 몬스터 전부 다 한번에 이동하고 clear되는지
+6. 64개 개수 같을떄 잘 골라지는지
+7. 몬스터 부화돼서 팩맨위치에 잇는데, 주변이 다 갇혀서 움직이지 못할때 그대로 팩맨에 잇음.
+
+
 */
 
-/////////////////////////////////////
-int inrange(int newr, int newc)
-{
-    if(newr<1 || newr>4 || newc<1 || newc>4)
-    {
-        return 0;
-    }
-    return 1;
-}
-/////////////////////////////////////
 
-void step0()
+////////////////////////////////////////
+//변수설정
+int pr, pc;
+
+int board[5][5];
+vector<int> monster[5][5];
+vector<int> next_monster[5][5];
+vector<int> egg[5][5];
+
+int dr[8] = { -1,-1,0,1,1,1,0,-1 };
+int dc[8] = { 0,-1,-1,-1,0,1,1,1 };
+
+int best_path[3];
+int cur_path[3];
+int max_score = -1;
+int visited[5][5];
+
+
+
+///////////////////////////////////////
+void reset_egg()
 {
-    egg.clear();
+    for (int i = 1; i <= 4; i++)
+    {
+        for (int j = 1; j <= 4; j++)
+        {
+            egg[i][j].clear();
+        }
+    }
 }
 
 
 void step1()
 {
-    for(int i=0; i<monster.size(); i++)
+    reset_egg();
+
+    for (int i = 1; i <= 4; i++)
     {
-        egg.push_back({monster[i].r, monster[i].c, monster[i].d});
+        for (int j = 1; j <= 4; j++)
+        {
+            if (monster[i][j].size() > 0)
+            {
+                for (int a : monster[i][j])
+                {
+                    egg[i][j].push_back(a);
+                }
+            }
+        }
     }
 }
 
-/////////////////////////////////////
 
-tuple<int,int,int> monster_move(int r, int c, int d)
+
+int inrange(int r, int c)
 {
-    for(int i=0; i<8; i++)
+    return (r >= 1 && r <= 4 && c >= 1 && c <= 4);
+}
+
+void reset_next_monster()
+{
+    for (int i = 1; i <= 4; i++)
     {
-        int newd = (d + i)%8;
-        int newr = r + dr[newd];
-        int newc = c + dc[newd];
-
-        if(!inrange(newr, newc))
+        for (int j = 1; j <= 4; j++)
         {
-            continue;
+            next_monster[i][j].clear();
         }
-
-        if(dead_board[newr][newc]<0)
-        {
-            continue;
-        }
-
-        if(newr==pr && newc==pc)
-        {
-            continue;
-        }
-
-        return {newr, newc, newd};
     }
+}
 
-    return {r,c,d};
+void move_one(int r, int c)
+{
+    for (int a : monster[r][c])
+    {
+        int d = a;
+        int newr = r, newc = c;
+
+        for (int i = 0; i < 8; i++)
+        {
+            int dd = (d + i) % 8;
+            int newrr = newr + dr[dd];
+            int newcc = newc + dc[dd];
+
+            if ((newrr != pr || newcc != pc) && inrange(newrr, newcc) && board[newrr][newcc] == 0)
+            {
+                d = dd;
+                newr = newrr;
+                newc = newcc;
+
+                break;
+            }
+        }
+        next_monster[newr][newc].push_back(d);
+    }
+}
+
+void monster_update()
+{
+    for (int i = 1; i <= 4; i++)
+    {
+        for (int j = 1; j <= 4; j++)
+        {
+            monster[i][j] = next_monster[i][j];
+        }
+    }
 }
 
 void step2()
 {
-    for(int i=0; i<monster.size(); i++)
+    reset_next_monster();
+
+    for (int i = 1; i <= 4; i++)
     {
-        int r = monster[i].r;
-        int c = monster[i].c;
-        int d = monster[i].d;
+        for (int j = 1; j <= 4; j++)
+        {
+            if (monster[i][j].size() > 0)
+            {
+                move_one(i, j);
+            }
+        }
+    }
 
-        board[monster[i].r][monster[i].c]--;
+    monster_update();
+}
 
-        tuple<int,int,int> t = monster_move(r, c, d);
 
-        monster[i].r = get<0>(t);
-        monster[i].c = get<1>(t);
-        monster[i].d = get<2>(t);
 
-        board[monster[i].r][monster[i].c]++;
+void reset_visited()
+{
+    for (int i = 1; i <= 4; i++)
+    {
+        for (int j = 1; j <= 4; j++)
+        {
+            visited[i][j] = 0;
+        }
     }
 }
 
-/////////////////////////////////////
-vector<vector<pair<int,int>>> allset()
+void reset_path()
 {
-    vector<pair<int,int>> v1;
-    vector<vector<pair<int,int>>> v2;
-
-    for(int i=0; i<4; i++)
+    for (int i = 0; i <= 2; i++)
     {
-        int newr1 = pr +pdr[i];
-        int newc1 = pc +pdc[i];
+        cur_path[i] = 0;
+        best_path[i] = 0;
+    }
+    max_score = -1;
+}
 
-        if(!inrange(newr1,newc1))
+void dfs(int r, int c, int s, int score)
+{
+    if (s == 3)
+    {
+        if (score > max_score)
+        {
+            max_score = score;
+            for (int i = 0; i < 3; i++)
+            {
+                best_path[i] = cur_path[i];
+            }
+        }
+        return;
+    }
+
+    for (int i = 0; i < 8; i += 2)
+    {
+        int newr = r + dr[i];
+        int newc = c + dc[i];
+
+        if (!inrange(newr, newc))
         {
             continue;
         }
 
-        for(int j=0; j<4; j++)
+        cur_path[s] = i;
+
+        if (visited[newr][newc])
         {
-            int newr2 = newr1 +pdr[j];
-            int newc2 = newc1 +pdc[j];
-
-            if(!inrange(newr2,newc2))
-            {
-                continue;
-            }
-
-            for(int k=0; k<4; k++)
-            {
-                int newr3 = newr2 +pdr[k];
-                int newc3 = newc2 +pdc[k];
-
-                if(!inrange(newr3,newc3))
-                {
-                    continue;
-                }
-
-                v1.push_back({newr1,newc1});
-                v1.push_back({newr2,newc2});
-                v1.push_back({newr3,newc3});
-
-                v2.push_back({v1});
-                v1.clear();
-            }
+            dfs(newr, newc, s + 1, score);
+        }
+        else
+        {
+            visited[newr][newc] = 1;
+            dfs(newr, newc, s + 1, score + monster[newr][newc].size());
+            visited[newr][newc] = 0;
         }
     }
-
-    return v2;
-}
-
-vector<pair<int,int>> bestset()
-{
-    vector<pair<int,int>> best_v;
-
-    int best_count=-1;
-
-    vector<vector<pair<int,int>>> v = allset();
-
-    for(int i=0; i<v.size(); i++)
-    {
-        int count = 0;
-
-        for(int h=1; h<=5; h++)
-        {
-            for(int g=1; g<=5; g++)
-            {
-                visited[h][g]={false};
-            }
-        }
-
-        for(int j=0; j<v[i].size(); j++)
-        {
-            pair<int,int> p = v[i][j];
-
-            if(board[p.first][p.second]>0)
-            {
-                if(!visited[p.first][p.second])
-                {
-                    count += board[p.first][p.second];
-                    visited[p.first][p.second]=true;
-                }
-            }
-        }
-
-        if(count > best_count)
-        {
-            best_v = v[i];
-            best_count = count;
-        }
-    }
-    return best_v;
-}   
-
-bool isDead(Monster& m)
-{
-    if(m.r==pr && m.c==pc)
-    {
-        return 1;
-    }
-    return 0;
 }
 
 void step3()
 {
-    vector<pair<int,int>> v = bestset();
+    reset_visited();
+    reset_path();
 
-    for(pair<int,int> p : v)
+    dfs(pr, pc, 0, 0);
+
+    for (int i = 0; i < 3; i++)
     {
-        pr = p.first;
-        pc = p.second;
+        int newpr = pr + dr[best_path[i]];
+        int newpc = pc + dc[best_path[i]];
 
-        monster.erase
-        (
-            remove_if(monster.begin(), monster.end(), isDead),
-            monster.end()
-        );
-
-
-        if(board[pr][pc]>0)
+        if (monster[newpr][newpc].size() > 0)
         {
-            for(int i=0; i<board[pr][pc]; i++)
-            {
-                die.push_back({pr,pc,-1});
-                dead_board[pr][pc]--;
-            }
-
-            board[pr][pc]=0;
+            monster[newpr][newpc].clear();
+            board[newpr][newpc] = -3;
         }
+
+        pr = newpr;
+        pc = newpc;
     }
 }
-////////////////////////////////////////////
 
-bool idremove(Dead &d)
-{
-    return d.age==2;
-}
 
 void step4()
 {
-    for(int i=0; i<die.size(); i++)
+    for (int i = 1; i <= 4; i++)
     {
-        die[i].age++;
-    }
-
-    for(int i=0; i<die.size(); i++)
-    {
-        if(die[i].age==2)
+        for (int j = 1; j <= 4; j++)
         {
-            dead_board[die[i].r][die[i].c]++;
-
-
+            if (board[i][j] < 0)
+            {
+                board[i][j]++;
+            }
         }
-
-        
     }
-    
-    die.erase
-    (
-        remove_if(die.begin(), die.end(), idremove), die.end()
-    );
 }
 
 void step5()
 {
-    for(int i=0; i<egg.size(); i++)
+    for (int i = 1; i <= 4; i++)
     {
-        monster.push_back({egg[i].r, egg[i].c, egg[i].d});
-        board[egg[i].r][egg[i].c]++;
+        for (int j = 1; j <= 4; j++)
+        {
+            if (egg[i][j].size()>0)
+            {
+                for (int e : egg[i][j])
+                {
+                    monster[i][j].push_back(e);
+                }
+            }
+        }
     }
 }
 
 
 
+////////////////////////////////////
 
-
-
-
-////////////////////////////////////////////
-
-int main() 
+void cout_monster()
 {
-    int r, c, d;
-
-    cin >> M >> T;
-
-    cin >> r >> c;
-
-    pr=r;
-    pc=c;
-
-    for(int i=0; i<M; i++)
+    for (int i = 1; i <= 4; i++)
     {
-        cin >> r >> c >> d;
+        for (int j = 1; j <= 4; j++)
+        {
+            for (int a : monster[i][j])
+            {
+                cout << a << ",";
+            }
+            if (monster[i][j].size() == 0)
+            {
+                cout << -1 << ",";
+            }
+            cout << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
 
-        monster.push_back({r,c,--d});
+void cout_next_monster()
+{
+    for (int i = 1; i <= 4; i++)
+    {
+        for (int j = 1; j <= 4; j++)
+        {
+            for (int a : next_monster[i][j])
+            {
+                cout << a << ",";
+            }
+            if (next_monster[i][j].size() == 0)
+            {
+                cout << -1 << ",";
+            }
+            cout << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
 
-        board[r][c]++;
+
+void cout_board()
+{
+    for (int i = 1; i <= 4; i++)
+    {
+        for (int j = 1; j <= 4; j++)
+        {
+            cout << board[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_egg()
+{
+    for (int i = 1; i <= 4; i++)
+    {
+        for (int j = 1; j <= 4; j++)
+        {
+            for (int a : egg[i][j])
+            {
+                cout << a << ",";
+            }
+            if (monster[i][j].size() == 0)
+            {
+                cout << -1 << ",";
+            }
+            cout << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_best_path()
+{
+    for (int i = 0; i <= 2; i++)
+    {
+        cout << best_path[i] << " ";
+    }
+    cout << "\n\n";
+}
+
+//////////////////////////////////////////////////
+
+void reset_board()
+{
+    for (int i = 1; i <= 4; i++)
+    {
+        for (int j = 1; j <= 4; j++)
+        {
+            board[i][j] = 0;
+            monster[i][j].clear();
+            next_monster[i][j].clear();
+            egg[i][j].clear();
+            visited[i][j] = 0;
+        }
     }
 
-    ////////////////////////////////////////////////
-
-
-    for(int i=0; i<T; i++)
+    for (int i = 0; i <= 2; i++)
     {
-        step0();
-        step1();
-        step2();
-        step3();
-        step4();
-        step5();
+        best_path[i] = 0;
+        cur_path[i] = 0;
     }
 
-    cout << monster.size();
+    max_score = -1;
+}
 
-    return 0;
+///////////////////////////////////////////////
+
+int main(int argc, char** argv)
+{
+    int test_case;
+    int T;
+
+
+        //////////////////////////////////
+
+        reset_board();
+
+        //////////////////////////////////
+
+        int M, t;
+        int r, c, d;
+
+        cin >> M >> t;
+
+        cin >> r >> c;
+        pr = r;
+        pc = c;
+
+
+        for (int i = 0; i < M; i++)
+        {
+            cin >> r >> c >> d;
+
+            monster[r][c].push_back(--d);
+        }
+
+        ////////////////////////////////////////
+
+
+        for (int i = 0; i < t; i++)
+        {
+            step1();
+
+            step2();
+
+            step3();
+
+            step4();
+
+            step5();
+        }
+
+        int rlt = 0;
+
+        for (int i = 1; i <= 4; i++)
+        {
+            for (int j = 1; j <= 4; j++)
+            {
+                rlt += monster[i][j].size();
+            }
+        }
+
+        cout << rlt;
+    
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
