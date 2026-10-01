@@ -1,312 +1,206 @@
 #include <iostream>
-#include <stdio.h>
-#include <vector>
-#include <set>
-#include <tuple>
 #include <algorithm>
+#include <tuple>
 
+#define MAX_N 20
+#define MAX_M 400
+#define DIR_NUM 4
+#define EMPTY make_pair(401, 401)
+#define EMPTY_NUM 401
 
-//////////////////////////////////////////////////////////////
 using namespace std;
-//////////////////////////////////////////////////////////////
-int N,M,K;
 
-pair<int,int> board[30][30];
-int new_board[30][30];
+int n, m, k;
+int given_map[MAX_N][MAX_N];
+int next_dir[MAX_M + 1][DIR_NUM][DIR_NUM];
 
-struct player
-{
-    int r;
-    int c;
-    int d;
-    vector<tuple<int,int,int,int>> v;
-    int die=0;
-};
-vector<player> p;
+pair<int, int> player[MAX_N][MAX_N];
+pair<int, int> next_player[MAX_N][MAX_N];
 
+pair<int, int> contract[MAX_N][MAX_N];
 
-int dr[4] = {-1,1,0,0};
-int dc[4] = {0,0,-1,1};
+int elapsed_time;
 
-int counts;
-
-//////////////////////////////////////////////////////////////
-/*
-0. 초기화
--삼차원 배열에 저장 방향 순위 저장
-int board는 0빈칸, 1~은 플레이어 위치
-pair<int,int> tunr_board 에 독점계약당한 칸의 남은 턴수를 기록 -> 이동할떄마다 turn 줄이면 될듯 -> 첫칸은 플레이어 번호, 두번째칸은 남은 턴수
--초기 위치도 turn_board에 초기화
--구조체로 플레이어의 현재 좌표,방향, 이차원 배열로 상하좌우 순서대로 우선순위 저장
-
-1. 모든 플레이어 이동.
--각 플레이어 이동 -> 각 플레이어의 현재 방향에 해당하는 우선순위 방향 벡터 뽑음
--그 순위대로 for문 돌리면서 빈칸잇는지 탐색 -> 잇으면 그 칸 반환&방향 갱신, 없으면 -1,-1반환
-- 반환받아서 int new_board에 플레이어 번호 저장. 
--저장할 때 0이 아니면 플레이어번호 비교해서 작은 거만 남김 -> 전체 count--
-- -1,-1 반환받앗으면 우선순위 방향대로 for돌리면서 그 칸이 turn_board의 첫칸이 자기번호인 곳 찾음
-
-2. board 업데이트
-
-2. turnboard에 남은 턴수 감소
-
-*/
-//////////////////////////////////////////////////////////////
-void new_board_reset()
-{
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            new_board[i][j]=0;
-        }
-    }
+bool InRange(int x, int y) {
+    return 0 <= x && x < n && 0 <= y && y < n;
 }
 
-void board_reset()
-{
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            board[i][j]={0,0};
-        }
-    }
-}
-
-
-int inrange(int r, int c)
-{
-    return (r>=1 && r<=N && c>=1 && c<=N);
-}
-
-tuple<int,int,int> move_one(int num)
-{
-    int d = p[num].d;
-    int r = p[num].r;
-    int c = p[num].c;
-
-    vector<tuple<int,int,int,int>> v = p[num].v;
-    tuple<int,int,int,int> t = v[d];
-    int arr[4] = {get<0>(t), get<1>(t),get<2>(t),get<3>(t)};
-
-    for(int i=0; i<4; i++)
-    {
-        int newd = arr[i];
-        int newr = r + dr[newd];
-        int newc = c + dc[newd];
-
-        if(!inrange(newr, newc))
-        {
-            continue;
-        }
-
-        if(board[newr][newc].first == 0)
-        {
-            return {newr, newc, newd};
-        }
-    }
-
-    return {-1,-1,-1};
-}
-
-tuple<int,int,int> backmove(int num)
-{
-    int d = p[num].d;
-    int r = p[num].r;
-    int c = p[num].c;
-
-    vector<tuple<int,int,int,int>> v = p[num].v;
-    tuple<int,int,int,int> t = v[d];
-    int arr[4] = {get<0>(t), get<1>(t),get<2>(t),get<3>(t)};
-
-    for(int i=0; i<4; i++)
-    {
-        int newd = arr[i];
-        int newr = r + dr[newd];
-        int newc = c + dc[newd];
-
-        if(!inrange(newr, newc))
-        {
-            continue;
-        }
-
-        if(board[newr][newc].first == num)
-        {
-            return {newr, newc, newd};
-        }
-    }
-    return{-1,-1,-1};
-}
-
-
-void step1()
-{
-    new_board_reset();
-
-    for(int i=1; i<=M; i++)
-    {
-        if(p[i].die)
-        {
-            continue;
-        }
-
-        tuple<int,int,int> t = move_one(i);
-        int newr  = get<0>(t);
-        int newc  = get<1>(t);
-        int newd  = get<2>(t);
-
-        if(newr==-1)
-        {
-            tuple<int,int,int> t1 = backmove(i);
-            p[i].r=get<0>(t1);
-            p[i].c=get<1>(t1);
-            p[i].d=get<2>(t1);
-        }
-
-        else
-        {
-            if(new_board[newr][newc]!=0)
-            {
-                p[i].die=1;
-                counts--;
-            }
-
-            else
-            {
-                new_board[newr][newc]=i;
-                p[i].r=newr;
-                p[i].c=newc;
-                p[i].d=newd;
-            }
-        }
-    }
-}
-
-void step2()
-{
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            if(board[i][j].second!=0)
-            {
-                board[i][j].second--;
-            }
-        }
-    }
-
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            if(board[i][j].second==0 && board[i][j].first!=0)
-            {
-                board[i][j]={0,0};
-            }
-        }
-    }
-}
-
-void step3()
-{
-    for(int i=1; i<=M; i++)
-    {
-        if(p[i].die)
-        {
-            continue;
-        }
-
-        board[p[i].r][p[i].c] = {i,K};
-    }
-}
-//////////////////////////////////////////////////////////////
-
-int main(int argc, char** argv)
-{
-    int test_case;
-    int T;
+bool CanGo(int x, int y, int target_num) {
+    if(!InRange(x, y))
+        return false;
     
-    //freopen("input.txt", "r", stdin);
-    //cin>>T;
+    // target 번호와 contract 번호가 일치한 
+    // 경우에만 이동이 가능합니다.
+    int contract_num;
+    tie(contract_num, ignore) = contract[x][y];
+    
+    return contract_num == target_num;
+}
 
+tuple<int, int, int> NextPos(int x, int y, int curr_dir) {
+    int dx[DIR_NUM] = {-1, 1, 0, 0};
+    int dy[DIR_NUM] = {0, 0, -1, 1};
+    
+    int num;
+    tie(num, ignore) = player[x][y];
 
-    //for(test_case = 1; test_case <= T; ++test_case)
-    //{
-        int n,d;
-        int d1, d2, d3, d4;
-
-        p.clear();
-        board_reset();
-        new_board_reset();
+    // Case 1.
+    // 먼저 독점계약을 맺지 않은 공간이 있다면 
+    // 우선순위에 따라 그곳으로 이동합니다.
+    for(int i = 0; i < 4; i++) {
+        int move_dir = next_dir[num][curr_dir][i];
+        int nx = x + dx[move_dir], ny = y + dy[move_dir];
         
-        cin >> N >> M >> K;
-        p.resize(M+1);
+        if(CanGo(nx, ny, EMPTY_NUM))
+            return make_tuple(nx, ny, move_dir);
+    }
+    
+    // Case 2.
+    // 인접한 곳이 모두 독점계약을 맺은 곳이라면
+    // 우선순위에 따라 그 중 본인이 독점계약한 땅으로 이동합니다.
+    for(int i = 0; i < 4; i++) {
+        int move_dir = next_dir[num][curr_dir][i];
+        int nx = x + dx[move_dir], ny = y + dy[move_dir];
+        
+        if(CanGo(nx, ny, num))
+            return make_tuple(nx, ny, move_dir);
+    }
+}
 
-        counts = M;
+// (x, y) 위치에 새로운 플레이어가 들어왔을 때 갱신을 진행합니다.
+void Update(int x, int y, pair<int, int> new_player) {
+    // 새로 들어온 플레이어가 더 우선순위가 높을 경우에만
+    // (x, y)위치에 해당 플레이어가 위치하게 됩니다.
+    // Tip.
+    // Empty인 위치에서는 항상 update가 되게끔
+    // 미리 Empty의 num 값에 401를 셋팅해놨습니다.
+    if(next_player[x][y] > new_player) 
+        next_player[x][y] = new_player;
+}
 
-        for(int i=1; i<=N; i++)
-        {
-            for(int j=1; j<=N; j++)
-            {
-                cin >> n;
+void Move(int x, int y) {
+    int num, curr_dir;
+    tie(num, curr_dir) = player[x][y];
+    
+    // Step1. 현재 플레이어의 다음 위치와 방향을 구합니다.
+    int nx, ny, move_dir; 
+    tie(nx, ny, move_dir) = NextPos(x, y, curr_dir);
+    
+    // Step2. 플레이어를 옮겨줍니다.
+    Update(nx, ny, make_pair(num, move_dir));
+}
 
-                if(n==0)
-                {
-                    board[i][j]={0,0};
+void DecContract(int x, int y) {
+    int num, remaining_period;
+    tie(num, remaining_period) = contract[x][y];
+    
+    // 남은 기간이 1이면 다시 Empty가 됩니다.
+    if(remaining_period == 1)
+        contract[x][y] = EMPTY;
+    // 그렇지 않다면 기간이 1 줄어듭니다.
+    else
+        contract[x][y] = make_pair(num, remaining_period - 1);
+}
+
+void AddContract(int x, int y) {
+    int num;
+    tie(num, ignore) = player[x][y];
+    contract[x][y] = make_pair(num, k);
+}
+
+void Simulate() {
+    // Step1. next_player를 초기화합니다.
+    for(int i = 0; i < n; i++)
+        for(int j = 0; j < n; j++)
+            next_player[i][j] = EMPTY;
+    
+    // Step2. 각 플레이어들을 한 칸씩 움직여줍니다.
+    for(int i = 0; i < n; i++)
+        for(int j = 0; j < n; j++)
+            if(player[i][j] != EMPTY)
+                Move(i, j);
+
+    // Step3. next_grid 값을 grid로 옮겨줍니다.
+    for(int i = 0; i < n; i++)
+        for(int j = 0; j < n; j++)
+            player[i][j] = next_player[i][j];
+    
+    // Step4. 남은 contract기간을 1씩 감소시킵니다.
+    for(int i = 0; i < n; i++)
+        for(int j = 0; j < n; j++)
+            if(contract[i][j] != EMPTY)
+                DecContract(i, j);
+    
+    // Step5. 새로운 contract를 갱신해줍니다.
+    for(int i = 0; i < n; i++)
+        for(int j = 0; j < n; j++)
+            if(player[i][j] != EMPTY)
+                AddContract(i, j);
+}
+
+bool End() {
+    if(elapsed_time >= 1000)
+        return true;
+    
+    for(int i = 0; i < n; i++)
+        for(int j = 0; j < n; j++) {
+            if(player[i][j] == EMPTY)
+                continue;
+            
+            int num;
+            tie(num, ignore) = player[i][j];
+            
+            if(num != 1)
+                return false;
+        }
+    
+    return true;
+}
+
+int main() {
+    cin >> n >> m >> k;
+    
+    // 초기 상태를 입력받습니다.
+    for(int i = 0; i < n; i++)
+        for(int j = 0; j < n; j++) {
+            cin >> given_map[i][j];
+            if(given_map[i][j] == 0) {
+                player[i][j] = EMPTY;
+                contract[i][j] = EMPTY;
+            }
+        }
+    
+    // 플레이어 마다 초기 방향을 입력받아 설정해줍니다.
+    for(int num = 1; num <= m; num++) {
+        int move_dir;
+        cin >> move_dir;
+        for(int i = 0; i < n; i++)
+            for(int j = 0; j < n; j++)
+                if(given_map[i][j] == num) {
+                    player[i][j] = make_pair(num, move_dir - 1);
+                    contract[i][j] = make_pair(num, k);
                 }
-
-                else
-                {
-                    board[i][j] = {n,K};
-                    p[n].r=i;
-                    p[n].c=j;
-                }
+    }
+    
+    // 플레이어 마다 방향 우선순위를 설정합니다.
+    for(int num = 1; num <= m; num++)
+        for(int curr_dir = 0; curr_dir < 4; curr_dir++)
+            for(int i = 0; i < 4; i++) {
+                cin >> next_dir[num][curr_dir][i];
+                next_dir[num][curr_dir][i]--;
             }
-        }
-
-        for(int i=1; i<=M; i++)
-        {
-            cin >> d;
-            p[i].d=--d;
-        }
-
-        for(int i=1; i<=M; i++)
-        {
-            for(int j=0; j<4; j++)
-            {
-                cin >> d1 >> d2 >> d3 >> d4;
-
-                p[i].v.push_back({--d1,--d2,--d3,--d4});
-            }
-        }
-
-        //////////////////////////////////////////////////////////////
-
-        int answer=0;
-
-        while(1)
-        {
-            answer++;
-
-            if(answer==1000)
-            {
-                answer=-1;
-                break;
-            }
-
-            step1();
-            step2();
-            step3();
-
-            if(counts==1)
-            {
-                break;
-            }
-        }
-
-        cout << answer;
-
-    //}
+    
+    // 시간이 1000이 넘지 않고
+    // 1번이 아닌 플레이어가 남아 있다면
+    // 계속 시뮬레이션을 반복합니다.
+    while(!End()) {
+        Simulate();
+        elapsed_time++;
+    }
+    
+    if(elapsed_time >= 1000)
+        elapsed_time = -1;
+    
+    cout << elapsed_time;
     return 0;
 }
