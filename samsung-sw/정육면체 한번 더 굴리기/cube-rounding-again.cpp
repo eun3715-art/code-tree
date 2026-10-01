@@ -1,372 +1,230 @@
-#include <iostream>
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+#include <cstdio>
+#include <vector>
 #include <queue>
-#include <algorithm>
 
+////////////////////////////////////////////////////////
 using namespace std;
-/////////////////////
-int N,M;
+///////////////////////////////////////////////////////
+/*
+0.
+-구조체에 항상 맨 아래, 맨앞 기준 하, 맨앞기준 우. 이렇게 3칸의 수를 순서대로 int a,b,c 로 저장
+- 구조체 int d 로 방향도 저장
+- int r, c : 주사위 좌표
 
-int board[30][30];
+1. 주사위 이동
+- 방향 정하기
+  : 처음엔 오른쪽
+  : a랑 board[r[c 비교해서 d갱신
+ - 갱신한 d로 한칸 이동한 후 칸 넘어가면 방향 바꿔서 한번 더 이동하고 구조체 a,b,c,r,c 다 갱신
 
-struct Dice
-{
-    int r, c;
-    int up, down, right, left;
-    int num;
+2. 점수 계산
+- BFS 돌려서 계산
+*/
 
-    int d;
+///////////////////////////////////////////////////////
+//변수
+int N, M;
 
-};
+int board[25][25];
+int visited[25][25];
 
-Dice dice;
+
+int Dx=6, Dy=2, Dz=3;
+int Dd = 1;
+int Dr = 1, Dc = 1;
+
+int dr[4] = { -1,0,1,0 };
+int dc[4] = { 0,1,0,-1 };
+
+int turn = 1;
 
 int score = 0;
 
-int dr[4] = {-1,1,0,0};
-int dc[4] = {0,0,-1,1};
+//////////////////////////////////////////////////////////////
 
-bool visited[30][30];
-/////////////////////
+void cal_direction()
+{
+    if (turn == 1)
+    {
+        return;
+    }
 
+    if (Dx > board[Dr][Dc])
+    {
+        Dd = (Dd + 1) % 4;
+    }
 
-/*
-board로 보드판 저장.
-구조체 - 주사위 아랫면: 위치와 값 저장, 
-        그 주위 4개 순서대로 값만 저장, 
-        방향 변환 값 저장.
-        -> d가 0이면 그대로 니까 우좌는 세로 3개, 상하는 가로 3개
-        -> d가 1이면 우좌가 가로 3개, 상하는 세로 3개
-        -> d 2면 세로 3개를 거꾸로
-        -> 
-int score ++:
-
-step1: 아랫면과 보드판 숫자 크기 비교 & 전개도 변경
-
-
-step2 : 갱신된 d를 기준으로 전진(이동)
-
-step3: 그 보드 면에서 bfs하면서 같은 숫자일때만 count 같은 숫자가 아니게 되면 그건 push안함.
-
-*/
-///////////////////////////////
+    else if (Dx < board[Dr][Dc])
+    {
+        Dd = (Dd + 3) % 4;
+    }
+}
 
 int inrange(int r, int c)
 {
-    if(r<1 || r>N || c<1 || c>N)
-    {
-        return 0;
-    }
-
-    return 1;
+    return (r >= 1 && r <= N && c >= 1 && c <= N);
 }
 
-//////////////////////////////////
-//아랫면이랑 보드판 크기 비교
-void compare()
+void update_x_y_z()
 {
-    int num = dice.num;
-    int r = dice.r;
-    int c = dice.c;
-
-    int cur_board = board[r][c];
-
-    if(num > cur_board)
+    int x = Dx, y = Dy, z = Dz;
+    if (Dd == 0)
     {
-        dice.d++;
-
-        if(dice.d==4)
-        {
-            dice.d = 0;
-        }
-        //시계방향
-        //return 1;
+        Dx = 7 - y;
+        Dy = x;
+        Dz = z;
     }
 
-    else if(num < cur_board)
+    else if (Dd == 1)
     {
-        dice.d--;
-
-        if(dice.d==-1)
-        {
-            dice.d = 3;
-        }
-        //반시계방향
-        //return 2;
+        Dx = z;
+        Dy = y;
+        Dz = 7 - x;
     }
-    //그대로
-    //return 0;
+
+    else if (Dd == 2)
+    {
+        Dx = y;
+        Dy = 7-x;
+        Dz = z;
+    }
+
+    else 
+    {
+        Dx = 7-z;
+        Dy = y;
+        Dz = x;
+    }
 }
-/*
-void change_d(int d)
+
+void move_one()
 {
-    if(d==1)
-    {
-        int up = dice.up;
-        int down = dice.down;
-        int right = dice.right;
-        int left = dice.left;
+    int newr = Dr + dr[Dd];
+    int newc = Dc + dc[Dd];
 
-        dice.up = left;
-        dice.right = up;
-        dice.down = right;
-        dice.left = down;
+    if (!inrange(newr, newc))
+    {
+        Dd = (Dd + 2) % 4;
+        newr = Dr + dr[Dd];
+        newc = Dc + dc[Dd];
     }
 
-    else if(d==2)
-    {
-        int up = dice.up;
-        int down = dice.down;
-        int right = dice.right;
-        int left = dice.left;
-
-        dice.up = right;
-        dice.right = down;
-        dice.down = left;
-        dice.left = up;
-    }
+    Dr = newr;
+    Dc = newc;
+    update_x_y_z();
 }
-*/
 
 void step1()
 {
-    compare();
-
-    //change_d(d);
-}
-////////////////////////////////////
-
-//주사위 이동
-void move_right()
-{
-    int up = dice.up;
-    int down = dice.down;
-    int right = dice.right;
-    int left = dice.left;
-    int num = dice.num;
-
-    dice.left = num;
-    dice.num = right;
-    dice.right = 7-num;
-
-    dice.c++;
+    cal_direction();
+    move_one();
 }
 
-void move_left()
+
+void reset_visited()
 {
-    int up = dice.up;
-    int down = dice.down;
-    int right = dice.right;
-    int left = dice.left;
-    int num = dice.num;
-
-    dice.right = num;
-    dice.num = left;
-    dice.left = 7-num;
-
-    
-    dice.c--;
+    for (int i = 1; i <= N; i++)
+    {
+        for (int j = 1; j <= N; j++)
+        {
+            visited[i][j] = 0;
+        }
+    }
 }
 
-void move_up()
+void bfs()
 {
-    int up = dice.up;
-    int down = dice.down;
-    int right = dice.right;
-    int left = dice.left;
-    int num = dice.num;
+    queue<pair<int, int>> q;
+    q.push({ Dr, Dc });
+    visited[Dr][Dc] = 1;
 
-    dice.down = num;
-    dice.num = up;
-    dice.up = 7-num;
+    int count = 1;
 
-    
-    dice.r--;
-}
+    while (!q.empty())
+    {
+        pair<int, int> p = q.front();
+        q.pop();
 
-void move_down()
-{
-    int up = dice.up;
-    int down = dice.down;
-    int right = dice.right;
-    int left = dice.left;
-    int num = dice.num;
+        for (int i = 0; i < 4; i++)
+        {
+            int newr = p.first + dr[i];
+            int newc = p.second + dc[i];
 
-    dice.up = num;
-    dice.num = down;
-    dice.down = 7-num;
+            if (!inrange(newr, newc))
+            {
+                continue;
+            }
 
-    dice.r++;
+            if ((board[newr][newc] == board[p.first][p.second]) && visited[newr][newc] == 0)
+            {
+                q.push({ newr,newc });
+                visited[newr][newc] = 1;
+                count++;
+            }
+        }
+    }
+
+    score += (count * board[Dr][Dc]);
 }
 
 void step2()
 {
-    int d = dice.d;
-    int r = dice.r;
-    int c = dice.c;
-
-    if(d==0)
-    {
-        if(++c == N+1)
-        {
-            move_left();
-            dice.d=2;
-        }
-        else
-        {
-            move_right();
-        }
-    }
-
-    else if(d==1)
-    {
-        if(++r == N+1)
-        {
-            move_up();
-            dice.d=3;
-        }
-        else
-        {
-            move_down();
-        }
-    }
-
-    else if(d==2)
-    {
-        if(--c == 0)
-        {
-            move_right();
-            dice.d=0;
-        }
-        else
-        {
-            move_left();
-        }
-    }
-
-    else if(d==3)
-    {
-        if(--r == 0)
-        {
-            move_down();
-            dice.d=1;
-        }
-        else
-        {
-            move_up();
-        }
-    }
-}
-
-
-//////////////////////////
-
-void step3()
-{
-    int rr = dice.r;
-    int cc = dice.c;
-
-    int n = board[rr][cc];
-
-    int n_count=1;
-
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
-        {
-            visited[i][j]=false;
-        }
-    }
-
-    queue<pair<int,int>> q;
-
-    q.push({rr,cc});
-    visited[rr][cc]=true;
-
-
-    while(!q.empty())
-    {
-        pair<int,int> p = q.front();
-        q.pop();
-
-        int r = p.first;
-        int c = p.second;
-
-
-        for(int i=0; i<4; i++)
-        {
-            int newr = r + dr[i];
-            int newc = c + dc[i];
-
-            if(!inrange(newr, newc))
-            {
-                continue;
-            }
-
-            if(board[newr][newc]!=n)
-            {
-                continue;
-            }
-
-            if(visited[newr][newc])
-            {
-                continue;
-            }
-
-            q.push({newr,newc});
-            n_count++;
-            visited[newr][newc]=true;
-
-        }
-    }
-
-    score+=n_count*n;
+    reset_visited();
+    bfs();
 }
 
 
 
-int main() 
+///////////////////////////////////////////
+
+void cout_dice()
 {
-    int n;
+    cout << Dx << " " << Dy << " " << Dz << " " << Dd << " " << Dr << " " << Dc << "\n\n";
+}
 
-    dice.r=1;
-    dice.c=1;
-    dice.num=6;
-    dice.up = 5;
-    dice.down = 2;
-    dice.right = 3;
-    dice.left=4;
-    dice.d=0;
 
-    cin >> N >> M;
 
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
+///////////////////////////////////////////////////
+
+int main(int argc, char** argv)
+{
+    int test_case;
+    int T;
+        ////////////////
+        //전체 초기화
+
+
+        //////////////////
+        //변수 선언
+        int a;
+
+        /////////////////////////////////
+        cin >> N >> M;
+
+        for (int i = 1; i <= N; i++)
         {
-            cin >> n;
-            board[i][j]=n;
+            for (int j = 1; j <= N; j++)
+            {
+                cin >> a;
+
+                board[i][j] = a;
+            }
         }
-    }
-
-    /////////////
 
 
-    for(int i=0; i<M; i++)
-    {
-        if(i==0)
-        {
-            move_right();
-            step3();
-        }
-        else
+
+        /////////////////////////////
+        for (turn = 1; turn <= M; turn++)
         {
             step1();
             step2();
-            step3();
         }
-    }
 
-    cout << score;
 
-    return 0;
+
+        cout << score;
+
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
