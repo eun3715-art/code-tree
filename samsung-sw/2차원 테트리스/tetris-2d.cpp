@@ -1,293 +1,174 @@
+#include <iostream>
 
-#include<iostream>
-#include <cstdio>
-#include <vector>
-/////////////////////////////////////////////////////
+#define BOARD_NUM 2
+#define MAX_N 6
+#define MAX_M 4
+#define TILE_NUM 3
 
 using namespace std;
-///////////////////////////////////////////////////////
 
-/*
-edge
-1. k=10000
-2. 연한 부분, 열 다 찬 거 동시에 이뤄졋을떄
+// 3가지 타일 모양을 지정합니다.
+int shapes[TILE_NUM + 1][2][2] = {
+    {},
 
+    {{1, 0},
+     {0, 0}},
 
-*/
-//////////////////////////////////////////////////////////
-//변수
-vector<vector<vector<int>>> board(2,vector<vector<int>>(6, vector<int>(4,0)));
+    {{1, 1},
+     {0, 0}},
 
-struct block
-{
-   int r,c,t;
+    {{1, 0},
+     {1, 0}},
 };
-vector<block> B;
 
-int turn=0;
+int n = 6, m = 4, k;
+int board[BOARD_NUM][MAX_N][MAX_M];
 
-int score=0;
+int score;
 
-///////////////////////////////////////////////////
-
-vector<pair<int,int>> make_block(int r, int c, int t)
-{
-   vector<pair<int,int>> v;
-
-   v.push_back({r,c});
-
-   if(t==2)
-   {
-      v.push_back({r,c+1});
-   }
-   else if(t==3)
-   {
-      v.push_back({r+1,c});
-   }
-
-   return v;
+bool InRange(int x, int y) {
+    return 0 <= x && x < n && 0 <= y && y < m;
 }
 
-int cango(int board_num, int r, int c, int t)
-{
-   if(board_num==1)
-   {
-      if(t==2)
-      {
-         t=3;
-      }
-      else if(t==3)
-      {
-         t=2;
-      }
-   }
-
-   vector<pair<int,int>> v = make_block(r, c, t);
-
-   int final=5;
-   int temp=1;
-
-   for(int row=1; row<=4; row++)
-   {
-      if(!temp)
-      {
-         break;
-      }
-      for(pair<int,int> p : v)
-      {
-         if(board[board_num][row+1][p.second]!=0)
-         {
-            final=row;
-            temp=0;
-            break;
-         }
-      }
-   }
-
-   return final;
-}
-
-void move_one(int board_num, int r, int c, int t)
-{
-   int final = cango(board_num, r, c, t);
-
-   if(board_num==1)
-   {
-      if(t==2) t=3;
-      else if(t==3) t=2;
-   }
-
-   if(t==1)
-   {
-      board[board_num][final][c]=1;
-   }
-
-   else if(t==2)
-   {
-      board[board_num][final][c]=1;
-      board[board_num][final][c+1]=1;
-   }
-
-   else
-   {
-      board[board_num][final-1][c]=1;
-      board[board_num][final][c]=1;
-   }
-}
-
-void step1()
-{
-   int t = B[turn].t, x = B[turn].r, y = B[turn].c;
-
-   move_one(0, x, y, t);
-
-   int rc;                      // 빨간색에서 사용할 열
-   if(t == 3) rc = 4 - 1 - (x + 1);   // 가로 타일: 왼쪽 칸 기준
-   else       rc = 4 - 1 - x;
-   move_one(1, 0, rc, t);       // t는 move_one 안에서 2<->3 교환됨
-}
-
-void full_line_logic(int num, int idx)
-{
-   board[num].erase(board[num].begin() + idx);
-   board[num].insert(board[num].begin(), vector<int>(4,0));
-   score++;
-}
-
-void find_full_line(int num)
-{
-   vector<int> full_line;
-
-   for(int i=5; i>=2; i--)
-   {
-      int temp=0;
-
-      for(int j=0; j<4; j++)
-      {
-         if(board[num][i][j]==0)
-         {
-            temp=1;
-         }
-      }
-
-      if(temp==0)
-      {
-         full_line_logic(num, i);
-         find_full_line(num);
-      }
-   }
-}
-
-void erase_full()
-{
-   find_full_line(0);
-   find_full_line(1);
-}
-
-
-void is_light(int num)
-{
-   vector<int> full_line;
-
-   for(int i=1; i>=0; i--)
-   {
-      int temp=0;
-
-      for(int j=0; j<4; j++)
-      {
-         if(board[num][i][j]==1)
-         {
-            temp=1;
-         }
-      }
-
-      if(temp==1)
-      {
-         board[num].pop_back();
-         board[num].insert(board[num].begin(), vector<int>(4,0));
-
-         is_light(num);
-      }
-   }
-}
-
-void erase_light()
-{
-   is_light(0);
-   is_light(1);
-}
-
-void erase_all()
-{
-   erase_full();
-   erase_light();
-}
-
-
-
-void step2()
-{
-   erase_all();
-}
-
-
-///////////////////////////////
-void cout_board(int num)
-{
-   for(int i=0; i<6; i++)
-   {
-      for(int j=0; j<4; j++)
-      {
-         cout << board[num][i][j]<<" ";
-      }
-      cout<<"\n";
-   }
-   cout <<"\n\n";
-}
-
-
-//////////////////////////////////////////////////////
-int main(int argc, char** argv)
-{
-
-      /////////////////////////////////////////////////////////
-      //초기화
-
-      board.assign(2, vector<vector<int>>(6, vector<int>(4, 0)));
-
-      score = 0;
-      ////////////////////////////////////////
-
-      int K;
-      int t, x, y;
-
-      cin >> K;
-      B.resize(K);
-
-      for (int i = 0; i < K; i++)
-      {
-        cin >> t >> x >> y;
-        B[i].r = x;
-        B[i].c = y;
-        B[i].t = t;
-      }
-
-
-      //////////////////////////////////////
-
-
-      for(turn=0; turn<K; turn++)
-      {
-         step1();
-         //cout_board(0);
-         //cout_board(1);
-         step2();
-         //cout_board(0);
-         //cout_board(1);
-      }
-
-      int count=0;
-
-      for(int i=2; i<=5; i++)
-      {
-         for(int j=0; j<4; j++)
-         {
-            for(int num=0; num<=1; num++)
-            {
-               if(board[num][i][j]==1)
-               {
-                  count++;
-               }
+bool CanGo(int b_num, int tile_type, int x, int y) {
+    // 바닥에 부딪히거나, 벽돌이 존재하는 경우에는
+    // 진행이 불가합니다.
+    for(int dx = 0; dx < 2; dx++)
+        for(int dy = 0; dy < 2; dy++)
+            if(shapes[tile_type][dx][dy]) {
+                int nx = x + dx, ny = y + dy;
+                
+                if(!InRange(nx, ny) || 
+                   board[b_num][nx][ny])
+                    return false;
             }
-         }
-      }
+    
+    return true;
+}
 
-      cout << score<<"\n"<<count;
+void Put(int b_num, int tile_type, int x, int y) {
+    for(int dx = 0; dx < 2; dx++)
+        for(int dy = 0; dy < 2; dy++)
+            if(shapes[tile_type][dx][dy]) {
+                int nx = x + dx, ny = y + dy;
+                board[b_num][nx][ny] = 1;
+            }
+}
 
-      
-   
+bool AllFilled(int b_num, int row) {
+    for(int col = 0; col < m; col++)
+        if(board[b_num][row][col] == 0)
+            return false;
+    
+    return true;
+}
 
+void DownOneLine(int b_num, int end_row) {
+    for(int row = end_row; row >= 1; row--)
+        for(int col = 0; col < m; col++) {
+            board[b_num][row][col] = board[b_num][row - 1][col];
+            board[b_num][row - 1][col] = 0;
+        }
+}
 
+void ProcessDark(int b_num) {
+    // 아래에서 위 방향으로 줄 마다
+    // 가득 채워져 있는지 확인하여
+    // 그 경우에는 점수에 1을 더해주고 
+    // 한 줄씩 당겨줍니다.
+    int row = n - 1;
+    while(row >= 2) {
+        if(AllFilled(b_num, row)) {
+            score++;
+            DownOneLine(b_num, row);
+        }
+        else
+            row--;
+    }
+}
 
-   return 0;//정상종료시 반드시 0을 리턴해야합니다.
+bool BlockExist(int b_num, int row) {
+    for(int col = 0; col < m; col++)
+        if(board[b_num][row][col] == 1)
+            return true;
+    
+    return false;
+}
+
+void ProcessLight(int b_num) {
+    // Step1. 첫 번째 행, 두 번째 행 중
+    // 블럭이 한 개라도 놓여있는 행의 수를 셉니다.
+    
+    int drop_cnt = 0;
+    if(BlockExist(b_num, 0))
+        drop_cnt++;
+    if(BlockExist(b_num, 1))
+        drop_cnt++;
+    
+    // Step2.
+    // 해당 수 만큼 타일을 한 줄씩 내려줍니다.
+    while(drop_cnt--)
+        DownOneLine(b_num, n - 1);
+}
+
+void Drop(int b_num, int tile_type, int col) {
+    // Step1. 블럭을 떨어뜨립니다.
+    for(int row = 0; row < n; row++) {
+        // 그 다음 행으로 진행할 수 없다면
+        // 블럭을 안착시킵니다.
+        if(!CanGo(b_num, tile_type, row + 1, col)) {
+            Put(b_num, tile_type, row, col);
+            break;
+        }
+    }
+    
+    // Step2. 진한 부분에 대한 처리를 진행합니다.
+    ProcessDark(b_num);
+    
+    // Step3. 연한 부분에 대한 처리를 진행합니다.
+    ProcessLight(b_num);
+}
+
+void Simulate(int t, int x, int y) {
+    // Step1. 노란색 영역에서 진행합니다.
+    Drop(0, t, y);
+    
+    // Step2. 빨간색 영역에서 진행합니다.
+    // 이는 그림에서 빨간색 영역을 
+    // 시계방향으로 90' 회전하여
+    // 노란색 영역에서와 같이 진행하면 됩니다.
+    // 각각의 블럭 type에 대해 
+    // 떨어지는 위치 선정이 중요합니다.
+    if(t == 1)
+        Drop(1, 1, m - 1 - x);
+    else if(t == 2)
+        Drop(1, 3, m - 1 - x);
+    else
+        Drop(1, 2, m - 1 - (x + 1));
+}
+
+int RemainingNum() {
+    int cnt = 0;
+    
+    for(int l = 0; l < 2; l++)
+        for(int i = 0; i < n; i++)
+            for(int j = 0; j < m; j++)
+                cnt += board[l][i][j];
+    
+    return cnt;
+}
+
+int main() {
+    cin >> k;
+    
+    // k번 시뮬레이션을 반복합니다.
+    while(k--) {
+        int t, x, y;
+        cin >> t >> x >> y;
+        Simulate(t, x, y);
+    }
+    
+    cout << score << endl << RemainingNum();
+    
+    return 0;
 }
