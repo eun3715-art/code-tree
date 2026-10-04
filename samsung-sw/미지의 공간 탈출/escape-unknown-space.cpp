@@ -1,128 +1,193 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include<iostream>
-#include<cstdio>
-#include<vector>
-#include<tuple>
-#include<algorithm>
-#include<queue>
-
-////////////////////////////////////////////////////////////////
+#include <cstdio>
+#include <vector>
+#include <queue>
+#include <algorithm>
+#include <tuple>
+////////////////////////////////////////////////////////////////////////////////
 using namespace std;
-////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
 /*
-각 장애물을 큐에다 넣고 순서대로 하나씩 더이상 확산 안될떄까지 해놓기
--> 각 배열 값은 턴수로 넣고 만약 겹치는 곳이라면 둘 중 턴수 적은 걸로 기록하기
-    
-경로 선택 - 타임머신 턴수 < 각 장애물 턴수 여야 지나갈수잇음
-
-타임머신이동1. 탈출구1까지는 평범한 dfs로 해서 도착할때까지 써먹은 턴수 기록
-    이동 2. 턴수 ++하면서 dist에 턴수를 기록. 탈출구까지 기록.
-    -> 이때 지나갈 수 잇는 경로는 타임머신 턴수 < 장애물 턴수여야함. 이게 부적합되면 못지나가는 곳으로 생각해야함.
-    그렇게 해서 최종 탈출구의 dist 출력
+0. 
+board 미지의공간 평면도 - 0빈칸, 1장애물
+strange - 미지의 공간 평면도에 시간이상현상의 turn을 기록.
+dice[5][M][M] - 정육면체
 
 
-1. 각 장애물 진행시켜서 턴수 기록해놓기
+1. strange처리
+- 각 배수마다 한칸씩 이동하고 그떄의 턴을 기록하자
 
-2. 시간의 벽에서 탈출구1까지 이동
+2. 타임머신 시간의 벽에서 탈출구 1로 이동
+- 탈출구 1찾고 그 변의 위치를 return
+- 동서남북 면 중 어느칸인지 알아내야힘
+- 그 칸이 장애물이면 -1 return. 뚫려있으면 bfs시작
+- 그 탈출구1 바로 옆의 면에서 시작해서 면 전환 진행하면서 dist배열 만들기.
+- 타임머신 위치에서 -1이면 -1return 아니면 한칸씩 이동하기
 
-3. 탈출구1 -> 2로 이동
+3. 탈출구1에서 시작해서 bfs돌리기. 현재의 턴 + 이동할떄마다 turn 1씩 더해가면서 해당 칸의 시간 현상보다
+작은 쪽만 통과하도록 turn을 더해간다. 
+-> 최종 탈출구에서 turn이 최종답
 
+edge
+-1. 첫 탈출구에 처음부터 시간현상 위치
+-2. 지나가는 턴과 같은 턴에 시간현상 지나갈떄 시간현상이 먼저 처리되는지
+3. 시간이상현상  min값으로 채워지는지
+4. 장애물이나 탈출구 보드값 3 앞에서 멈추는지
+5. 
 
+-1나와야하느 ㄴ조건
+- 탈출구1이 strange로 막힘. 
+- 탈출구 1 다음이 strange로 막힘 
+- 탈출구 1 다음이 장애물로 막힘
+- 탈출구 1로 갈때 처음 타임머신 dist가 -1임
+- 탈출구와 연결되는 그 곳이 장애물임
 */
-////////////////////////////////////////////////////////////////
-//변수선언
-int N,M,F;
+//변수///////////////////////////////////////////////////////////////////////////
+int N, M, F;
 
-int board[30][30];
+int board[25][25];
+int strange[25][25];
+int dice[5][11][11];
+int dist[5][11][11];
+int dist2[25][25];
 
-int east[30][30];
-int west[30][30];
-int south[30][30];
-int north[30][30];
-int top[30][30];
+int er1, ec1, er2, ec2;
 
-int square[6][30][30];
+int tr, tc, tface;
 
-int T_board[30][30];
-
-struct Time
+struct Strange
 {
-    int r,c,d,v;
+    int r, c, d, v;
 };
-vector<Time> T;
+vector<Strange> S;
 
-//동서남북
-int dr[4] = {0,0,1,-1};
-int dc[4] = {1,-1,0,0};
+int dr[4] = { 0,0,1,-1 };
+int dc[4] = { 1,-1,0,0 };
 
-int er,ec;
-int tr,tc;
+int turn = 1;
 
-int br,bc;           // 시간의 벽(3) 블록의 좌상단 좌표
-int escFace,escCol;  // 시간의 벽에서 실제로 바닥과 연결되는 (면, 열)
-
-int dist1[6][30][30];
-int dist2[30][30];
-
-int escape_time = -1;
-
-////////////////////////////////////////////////////////////////
-//함수 제작
+int ans;
+//함수////////////////////////////////////////////////////////////////////////////
 
 int inrange(int r, int c)
 {
-    return (r>=1 && r<=N && c>=1 && c<=N);
+    return(r >= 1 && r <= N && c >= 1 && c <= N);
 }
 
-void reset_dist1()
+int inrange_m(int r, int c)
 {
-    for(int f=1; f<=5; f++)
+    return(r >= 1 && r <= M && c >= 1 && c <= M);
+}
+
+
+void spread_one(int i)
+{
+    int r = S[i].r;
+    int c = S[i].c;
+    int d = S[i].d;
+    int v = S[i].v;
+
+    int n = 0;
+
+    while (1)
     {
-        for(int i=1; i<=N; i++)
+        n++;
+
+        int newr = r + dr[d];
+        int newc = c + dc[d];
+
+        if (!inrange(newr, newc) || board[newr][newc]!=0)
         {
-            for(int j=1; j<=N; j++)
-            {
-                dist1[f][i][j]=-1;
-            }
+            break;
         }
+
+        if (strange[newr][newc] == 0)
+        {
+            strange[newr][newc] = v * n;
+        }
+        else
+        {
+            strange[newr][newc] = min(v * n, strange[newr][newc]);
+        }
+        r = newr;
+        c = newc;
     }
 }
 
-void reset_dist2()
+void step1()
 {
-    for(int i=1; i<=N; i++)
+    for (int i = 0; i < S.size(); i++)
     {
-        for(int j=1; j<=N; j++)
-        {
-            dist2[i][j]=-1;
-        }
+        spread_one(i);
     }
 }
 
-//main에서 실행해야함
-void find_escape1()
+
+pair<int,int> find_exit1()
 {
-    for(int i=1; i<=N; i++)
+    for (int i = 1; i <= N; i++)
     {
-        for(int j=1; j<=N; j++)
+        for (int j = 1; j <= N; j++)
         {
-            if(board[i][j]==3)
+            if (board[i][j] == 3)
             {
-                for(int k=0; k<4; k++)
+                int n = 0;
+
+                for (int ii = i; ii < i + M; ii++)
                 {
-                    int newi = i + dr[k];
-                    int newj = j + dc[k];
+                    n++;
 
-                    if(!inrange(newi, newj))
+                    if (board[ii][j - 1] == 0)
                     {
-                        continue;
+                        er1 = ii;
+                        ec1 = j - 1;
+
+                        return { 1,n };
                     }
+                }
+                n = 0;
 
-                    if(board[newi][newj]==0)
+                for (int jj = j; jj < j + M; jj++)
+                {
+                    n++;
+
+                    if (board[i+M][jj] == 0)
                     {
-                        er=newi;
-                        ec=newj;
+                        er1 = i+M;
+                        ec1 = jj;
 
-                        return;
+                        return { 2,n };
+                    }
+                }
+
+                n = 0;
+
+                for (int ii = i+M-1; ii >= i; ii--)
+                {
+                    n++;
+
+                    if (board[ii][j+1] == 0)
+                    {
+                        er1 = ii;
+                        ec1 = j + 1;
+
+                        return { 0,n };
+                    }
+                }
+
+                n = 0;
+
+                for (int jj = j+M-1; jj >= j; jj--)
+                {
+                    n++;
+
+                    if (board[i-1][jj] == 0)
+                    {
+                        er1 = i-1;
+                        ec1 = jj;
+
+                        return { 3,n };
                     }
                 }
             }
@@ -130,582 +195,461 @@ void find_escape1()
     }
 }
 
-void find_block()
+int change_face(int &face, int &r, int &c)
 {
-    for(int i=1; i<=N; i++)
+    if (face == 0)
     {
-        for(int j=1; j<=N; j++)
+        if (r == 0)
         {
-            if(board[i][j]==3)
-            {
-                br=i;
-                bc=j;
-                return;
-            }
+            face = 4;
+            r = M+1-c;
+            c = M;
         }
-    }
-}
-
-void find_esc_face()
-{
-    if(er == br+M)          // 블록 남쪽 바깥
-    {
-        escFace = 4;
-        escCol = ec - bc + 1;
-    }
-    else if(er == br-1)     // 블록 북쪽 바깥
-    {
-        escFace = 5;
-        escCol = bc + M - ec;
-    }
-    else if(ec == bc+M)     // 블록 동쪽 바깥
-    {
-        escFace = 2;
-        escCol = br + M - er;
-    }
-    else if(ec == bc-1)     // 블록 서쪽 바깥
-    {
-        escFace = 3;
-        escCol = er - br + 1;
-    }
-}
-
-void find_timemachine()
-{
-    for(int i=1; i<=M; i++)
-    {
-        for(int j=1; j<=M; j++)
+        else if (c == 0)
         {
-            if(top[i][j]==2)
-            {
-                tr=i;
-                tc=j;
-            }
+            face = 2;
+            r = r;
+            c = M;
         }
-    }
-}
-void make_square()
-{
-    for(int i=1; i<=M; i++) 
-    {
-        for(int j=1; j<=M; j++) 
+        else if (c == M + 1)
         {
-            square[1][i][j] = top[i][j];   // 1: 위
-            square[2][i][j] = east[i][j];  // 2: 동
-            square[3][i][j] = west[i][j];  // 3: 서
-            square[4][i][j] = south[i][j]; // 4: 남
-            square[5][i][j] = north[i][j]; // 5: 북
+            face = 3;
+            r = r;
+            c = 1;
         }
-    }   
-}
-
-void time_strange(int i)
-{
-    int r = T[i].r;
-    int c = T[i].c;
-    int d = T[i].d;
-    int v = T[i].v;
-
-    T_board[r][c]=-1;
-
-    int tmp=0;
-
-    while(1)
-    {
-        tmp++;
-
-        int newr = r + dr[d]*tmp;
-        int newc = c + dc[d]*tmp;
-
-        if(!inrange(newr, newc))
-        {
-            break;
-        }
-
-        if(board[newr][newc]==1 || board[newr][newc]==4|| board[newr][newc] == 3)
-        {
-            break;
-        }
-
-        if(T_board[newr][newc]!=0)
-        {
-            T_board[newr][newc] = min(T_board[newr][newc], v*tmp);
-        }
-
         else
         {
-            T_board[newr][newc]=v*tmp;
+            return 0;
         }
-    }
-}
-
-void step1()
-{
-    for(int i=0; i<T.size(); i++)
-    {
-        time_strange(i);
-    }
-}
-
-void TN(int &r, int &c) // Top -> North
-{
-    r=1;
-    c=M-c+1;
-}
-void NT(int &r, int &c) // North -> Top
-{
-    r=1;
-    c=M-c+1;
-}
-void TE(int &r, int &c) // Top -> East
-{
-    c=M-r+1;
-    r=1;
-}
-void ET(int &r, int &c) // East -> Top
-{
-    r=M-c+1;
-    c=M;
-}
-void TW(int &r, int &c) // Top -> West
-{
-    c=r;
-    r=1;
-}
-void WT(int &r, int &c) // West -> Top
-{
-    r=c;
-    c=1;
-}
-void TS(int &r, int &c) // Top -> South
-{
-    r=1;
-    c=c;
-}
-void ST(int &r, int &c) // South -> Top
-{
-    r=M;
-    c=c;
-}
-void SE(int &r, int &c) // South -> East
-{
-    r=r;
-    c=1;
-}
-void ES(int &r, int &c) // East -> South
-{
-    r=r;
-    c=M;
-}
-void SW(int &r, int &c) // South -> West
-{
-    r=r;
-    c=M;
-}
-void WS(int &r, int &c) // West -> South
-{
-    r=r;
-    c=1;
-}
-void EN(int &r, int &c) // East -> North
-{
-    r=r;
-    c=1;
-}
-void NE(int &r, int &c) // North -> East
-{
-    r=r;
-    c=M;
-}
-void NW(int &r, int &c) // North -> West
-{
-    r=r;
-    c=1;
-}
-void WN(int &r, int &c) // West -> North
-{
-    r=r;
-    c=M;
-}
-
-int new_inrange(int r, int c)
-{
-    return (r>=1 && r<=M && c>=1 && c<=M);
-}
-
-tuple<int, int, int> move_cube(int face, int r, int c, int d)
-{
-    int newr = r + dr[d];
-    int newc = c + dc[d];
-
-    // 면 내부 이동
-    if (new_inrange(newr, newc))
-    {
-        return {face, newr, newc};
+        return 1;
     }
 
-    int next_face = face;
-
-    // 1: 위 (Top)
     if (face == 1)
     {
-        if (d == 0)
+        if (r == 0)
         {
-            next_face = 2;
-            TE(r, c);
+            face = 4;
+            r = c;
+            c = 1;
         }
-        else if (d == 1)
+        else if (c == 0)
         {
-            next_face = 3;
-            TW(r, c);
+            face = 3;
+            r = r;
+            c = M;
         }
-        else if (d == 2)
+        else if (c == M + 1)
         {
-            next_face = 4;
-            TS(r, c);
+            face = 2;
+            r = r;
+            c = 1;
         }
-        else if (d == 3)
+        else
         {
-            next_face = 5;
-            TN(r, c);
+            return 0;
         }
-        return {next_face, r, c};
+        return 1;
     }
-    // 2: 동 (East)
-    else if (face == 2)
+    if (face == 2)
     {
-        if (d == 0)
+        if (r == 0)
         {
-            next_face = 5;
-            EN(r, c);
+            face = 4;
+            r = M;
+            c = c;
         }
-        else if (d == 1)
+        else if (c == 0)
         {
-            next_face = 4;
-            ES(r, c);
+            face = 1;
+            r = r;
+            c = M;
         }
-        else if (d == 2)
+        else if (c == M + 1)
         {
-            return {-1, newr, newc}; // 바닥 진입
+            face = 0;
+            r = r;
+            c = 1;
         }
-        else if (d == 3)
+        else
         {
-            next_face = 1;
-            ET(r, c);
+            return 0;
         }
-        return {next_face, r, c};
+        return 1;
     }
-    // 3: 서 (West)
-    else if (face == 3)
+    if (face == 3)
     {
-        if (d == 0)
+        if (r == 0)
         {
-            next_face = 4;
-            WS(r, c);
+            face = 4;
+            r = 1;
+            c = M+1-c;
         }
-        else if (d == 1)
+        else if (c == 0)
         {
-            next_face = 5;
-            WN(r, c);
+            face = 0;
+            r = r;
+            c = M;
         }
-        else if (d == 2)
+        else if (c == M + 1)
         {
-            return {-1, newr, newc}; // 바닥 진입
+            face = 1;
+            r = r;
+            c = 1;
         }
-        else if (d == 3)
+        else
         {
-            next_face = 1;
-            WT(r, c);
+            return 0;
         }
-        return {next_face, r, c};
-    }
-    // 4: 남 (South)
-    else if (face == 4)
-    {
-        if (d == 0)
-        {
-            next_face = 2;
-            SE(r, c);
-        }
-        else if (d == 1)
-        {
-            next_face = 3;
-            SW(r, c);
-        }
-        else if (d == 2)
-        {
-            return {-1, newr, newc}; // 바닥 진입
-        }
-        else if (d == 3)
-        {
-            next_face = 1;
-            ST(r, c);
-        }
-        return {next_face, r, c};
-    }
-    // 5: 북 (North)
-    else if (face == 5)
-    {
-        if (d == 0)
-        {
-            next_face = 3;
-            NW(r, c);
-        }
-        else if (d == 1)
-        {
-            next_face = 2;
-            NE(r, c);
-        }
-        else if (d == 2)
-        {
-            return {-1, newr, newc}; // 바닥 진입
-        }
-        else if (d == 3)
-        {
-            next_face = 1;
-            NT(r, c);
-        }
-        return {next_face, r, c};
+        return 1;
     }
 
-    return {next_face, r, c};
+    if (face == 4)
+    {
+        if (r == 0)
+        {
+            face = 3;
+            r = 1;
+            c = M+1-c;
+        }
+        else if (c == 0)
+        {
+            face = 1;
+            c = r;
+            r = 1;
+        }
+        else if (c == M + 1)
+        {
+            face = 0;
+            c = M+1-r;
+            r = 1;
+        }
+        else
+        {
+            face = 2;
+            r = 1;
+            c = c;
+        }
+        return 1;
+    }
 }
 
-void cal_dist()
+void reset_dist()
 {
-    reset_dist1();
+    for (int i = 0; i < 5; i++)
+    {
+        for (int j = 1; j <= M; j++)
+        {
+            for (int k = 1; k <= M; k++)
+            {
+                dist[i][j][k] = -1;
+            }
+        }
+    }
+}
+
+void bfs(int face, int r, int c)
+{
+    reset_dist();
 
     queue<tuple<int,int,int>> q;
 
-    q.push({1,tr,tc});
+    q.push({face, r, c });
+    dist[face][r][c] = 0;
 
-    dist1[1][tr][tc]=0;
-
-    while(!q.empty())
+    while (!q.empty())
     {
-        tuple<int,int,int> t = q.front();
-
+        tuple<int, int, int> t = q.front();
         q.pop();
 
-        int cur_face = get<0>(t);
-        int cur_r = get<1>(t);
-        int cur_c = get<2>(t);
-
-        for(int i=0; i<4; i++)
+        for (int i = 0; i < 4; i++)
         {
-            // 남쪽(d = 2) 이동이면서 현재 위치가 실제 탈출 지점(escFace, escCol)의 맨 아래(r = M)인 경우 -> 바닥으로 탈출!
-            if (cur_face == escFace && i == 2 && cur_r == M && cur_c == escCol)
-            {
-                escape_time = dist1[cur_face][cur_r][cur_c] + 1;
+            int cur_face = get<0>(t);
+            int newr = get<1>(t) + dr[i];
+            int newc = get<2>(t) + dc[i];
 
-                return;
+            int cur_dist = dist[cur_face][get<1>(t)][get<2>(t)];
+
+            if (!inrange_m(newr, newc))
+            {
+                if (!change_face(cur_face, newr, newc))
+                {
+                    continue;
+                }
             }
 
-            int tr_r = cur_r;
-            int tr_c = cur_c;
-
-            tuple<int,int,int> tt = move_cube(cur_face, tr_r, tr_c, i);
-
-            int next_face = get<0>(tt);
-            int newr = get<1>(tt);
-            int newc = get<2>(tt);
-
-            if(next_face == -1)
+            if (dist[cur_face][newr][newc] == -1 && dice[cur_face][newr][newc]!=1)
             {
-                continue;
+                q.push({ cur_face, newr, newc });
+                dist[cur_face][newr][newc] = cur_dist + 1;
             }
-
-            if(square[next_face][newr][newc]==1 || dist1[next_face][newr][newc]!=-1)
-            {
-                continue;
-            }
-
-            dist1[next_face][newr][newc] = dist1[cur_face][cur_r][cur_c] + 1;
-
-            q.push({next_face,newr,newc});
         }
     }
 }
 
+/*
+void move_one(int &face)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        int newr = tr + dr[i];
+        int newc = tc + dc[i];
+        int cur_face = face;
+
+        int cur_dist = dist[cur_face][tr][tc];
+
+        if (!inrange(newr, newc))
+        {
+            if (!change_face(cur_face, newr, newc))
+            {
+                continue;
+            }
+        }
+
+        if (dist[cur_face][newr][newc] == cur_dist-1 && dice[cur_face][newr][newc] != 1)
+        {
+            tr = newr;
+            tc = newc;
+            face = cur_face;
+            return;
+        }
+    }
+}
+*/
+
 int step2()
 {
-    cal_dist();
+    pair<int, int> p = find_exit1();
 
-    if(escape_time == -1) return 0;
-
-    if(T_board[er][ec] == -1)
+    if (dice[p.first][M][p.second]==1)
     {
+        ans = -1;
         return 0;
     }
 
-    if(T_board[er][ec] != 0 && escape_time >= T_board[er][ec])
+    bfs(p.first, M, p.second);
+
+    if (dist[4][tr][tc] == -1)
     {
+        ans = -1;
         return 0;
     }
 
+    /*
+    int face = 4;
+    while (tr != M || tc != p.second)
+    {
+        move_one(face);
+        turn++;
+    }
+    */
+
+    turn = dist[4][tr][tc]+1;
+    tr = er1;
+    tc = ec1;
+    tface = p.first;
+
+    if (strange[tr][tc] != 0 && turn >= strange[tr][tc])
+    {
+        ans = -1;
+        return 0;
+    }
     return 1;
 }
 
 
+void reset_dist2()
+{
+    for (int i = 1; i <= N; i++)
+    {
+        for (int j = 1; j <= N; j++)
+        {
+            dist2[i][j] = -1;
+        }
+    }
+}
 
-int bfs_floor()
+
+void bfs2()
 {
     reset_dist2();
 
-    queue<pair<int, int>> q;
-    
-    // 바닥 시작점(er, ec) 세팅
-    dist2[er][ec] = escape_time;
-    q.push({er, ec});
+    queue < pair<int, int>> q;
+    q.push({ tr,tc });
+    dist2[tr][tc] = turn;
 
     while (!q.empty())
     {
-        auto [r, c] = q.front();
+        pair<int, int> p = q.front();
         q.pop();
-
-        // 최종 탈출구(4) 도착!
-        if (board[r][c] == 4)
-        {
-            return dist2[r][c];
-        }
 
         for (int i = 0; i < 4; i++)
         {
-            int nr = r + dr[i];
-            int nc = c + dc[i];
+            int newr = p.first + dr[i];
+            int newc = p.second + dc[i];
 
-            // 범위 밖이거나 장애물(1), 시간의 벽(3)인 경우 이동 불가
-            if (!inrange(nr, nc)) continue;
-            if (board[nr][nc] == 1 || board[nr][nc] == 3) continue;
+            if (!inrange(newr, newc))
+            {
+                continue;
+            }
 
-            int next_dist = dist2[r][c] + 1;
+            if (board[newr][newc] == 1 || board[newr][newc] == 3)
+            {
+                continue;
+            }
 
-            // 이미 방문했으면 스킵
-            if (dist2[nr][nc] != -1) continue;
+            if (dist2[newr][newc] == -1)
+            {
+                if (strange[newr][newc] != 0 && strange[newr][newc] <= dist2[p.first][p.second]+1)
+                {
+                    continue;
+                }
 
-            // 이상 현상이 오는 칸(-1이 아님)인데, 이상 현상 시간보다 늦거나 같게 도착하면 이동 불가
-            if (T_board[nr][nc] != 0 && next_dist >= T_board[nr][nc]) continue;
-
-            dist2[nr][nc] = next_dist;
-            q.push({nr, nc});
+                q.push({ newr,newc });
+                dist2[newr][newc] = dist2[p.first][p.second] + 1;
+            }
         }
     }
-
-    return -1; // 최종 탈출구까지 갈 수 없는 경우
 }
 
-int step3()
+void step3()
 {
-    // 2단계: er, ec에서 최종 탈출구(4)까지 2차 BFS 실행
-    int final_ans = bfs_floor();
+    bfs2();
 
-    return final_ans;
+    ans = dist2[er2][ec2];
 }
 
-////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 
+void cout_strange()
+{
+    for (int i = 1; i <= N; i++)
+    {
+        for (int j = 1; j <= N; j++)
+        {
+            cout << strange[i][j] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+
+void cout_dist()
+{
+    for (int i = 0; i < 5; i++)
+    {
+        for (int j = 1; j <= M; j++)
+        {
+            for (int k = 1; k <= M; k++)
+            {
+                cout << dist[i][j][k] << " ";
+            }
+            cout << "\n";
+        }
+        cout << "\n\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_dist2()
+{
+    for (int j = 1; j <= N; j++)
+    {
+        for (int k = 1; k <= N; k++)
+        {
+            cout << dist2[j][k] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+void cout_board()
+{
+    for (int j = 1; j <= N; j++)
+    {
+        for (int k = 1; k <= N; k++)
+        {
+            cout << board[j][k] << " ";
+        }
+        cout << "\n";
+    }
+    cout << "\n\n";
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char** argv)
 {
-    freopen("input.txt", "r", stdin);
-////////////////////////////////////////////////////////////////
-//입력
-    int n;
 
-    cin >> N >> M >> F;
-    T.resize(F);
+        //입력////////////////////////
 
-    for(int i=1; i<=N; i++)
-    {
-        for(int j=1; j<=N; j++)
+        cin >> N >> M >> F;
+
+        int n;
+        int ri, ci, di, vi;
+
+        for (int i = 1; i <= N; i++)
         {
-            cin >> n;
-            board[i][j]=n;
-        }
-    }
+            for (int j = 1; j <= N; j++)
+            {
+                cin >> n;
 
-    for(int i=1; i<=M; i++)
-    {
-        for(int j=1; j<=M; j++)
+                board[i][j] = n;
+
+                if (n == 4)
+                {
+                    er2 = i;
+                    ec2 = j;
+                }
+            }
+        }
+
+        for (int k = 0; k < 5; k++)
         {
-            cin >> n;
-            east[i][j]=n;
-        }
-    }
+            for (int i = 1; i <= M; i++)
+            {
+                for (int j = 1; j <= M; j++)
+                {
+                    cin >> n;
 
-    for(int i=1; i<=M; i++)
-    {
-        for(int j=1; j<=M; j++)
+                    dice[k][i][j] = n;
+
+                    if (n == 2)
+                    {
+                        tr = i;
+                        tc = j;
+                    }
+                }
+            }
+        }
+
+        for (int i = 1; i <= F; i++)
         {
-            cin >> n;
-            west[i][j]=n;
-        }
-    }
+            cin >> ri >> ci >> di >> vi;
 
-    for(int i=1; i<=M; i++)
-    {
-        for(int j=1; j<=M; j++)
+            strange[ri+1][ci+1] = 1;
+
+            S.push_back({ ri+1,ci+1,di,vi });
+        }
+
+
+
+        //초기화/////////////////////
+
+
+        //출력///////////////////////
+
+        step1();
+
+        int nn = step2();
+
+        if (nn == 1)
         {
-            cin >> n;
-            south[i][j]=n;
+            step3();
         }
-    }
-
-    for(int i=1; i<=M; i++)
-    {
-        for(int j=1; j<=M; j++)
-        {
-            cin >> n;
-            north[i][j]=n;
-        }
-    }
-
-    for(int i=1; i<=M; i++)
-    {
-        for(int j=1; j<=M; j++)
-        {
-            cin >> n;
-            top[i][j]=n;
-        }
-    }
-
-    int r,c,d,v;
-
-    for(int i=0; i<F; i++)
-    {
-        cin >> r >> c >> d >> v;
-
-        T[i].r=r+1;
-        T[i].c=c+1;
-        T[i].d=d;
-        T[i].v=v;
-    }
-
-
-
-////////////////////////////////////////////////////////////////
-//출력  
-
-find_timemachine(); 
-find_escape1();
-find_block();
-find_esc_face();
-make_square();
-
-    step1();
-    int tmp = step2();
-
-    if(tmp==0)
-    {
-        cout << -1;
-        return 0;
-    }
-
-    cout << step3();
-
-
-
-////////////////////////////////////////////////////////////////
-
+        
+        cout << ans;
+    
     return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
-
