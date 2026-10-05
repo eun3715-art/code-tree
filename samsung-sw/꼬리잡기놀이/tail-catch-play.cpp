@@ -1,78 +1,84 @@
-
 #define _CRT_SECURE_NO_WARNINGS
-
 #include<iostream>
 #include <cstdio>
-#include <queue>
-#include <tuple>
 #include <vector>
 #include <deque>
+#include <queue>
+#include <tuple>
 #include <algorithm>
-
-
+////////////////////////////////////////////////
 using namespace std;
-///////////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+/*
+0.
+사람은 deque로.
+이동할 때 머리쪽 다음칸에 push_front., pop_back실행
+방향전환은 reverse
+팀 번호를 알 수 잇는 각 구조체 번호대로 도로 만들어놓기
+
+0. 그룹 만들기
+- 처음 입력할 때 각 구조체안에 잇는 dq에 1인 좌표만 일단 담는다.
+- bfs로 연결요소 만들기
+- 1->2, 2->2, 2->3, 3->4or1 방향으로만 연결되도록 하자.
+- 이러면서 1,2,3은 순서대로 dq에 좌표를 넣는다.
+
+1. 머리따라서 이동
+- dq헤드 좌표에서 3이나 4인 쪽으로 한칸 return(상하좌우 중)
+- 현재 헤드를 2로 바꾸고, 현재 back을 4로 바꾼다.
+- return 칸을 PUSH_FRONT하고 pop_back한다. 현재 back을 3으로, 현재 헤드를 1로 바꾼다
+
+2. 공던지기
+- 각 턴마다 던지는 방향(우상좌하) 이랑 시작 좌표(행이랑 열)을 반환
+- 한칸씩 전진하면서 가장먼저 1,2,3중에 하나 맞으면 그 좌표를  반환
+- 그 좌표를 받아서 그 좌표 road 번호르 ㄹ찾아서 그 구조체의 dq로 들어감
+- 좌표랑 dq를 이용해 head로부터 몇번쨰인지 return
+- 점수 갱신하고 reverse
+
+3. 방향전환
+
+
+
+- 머리사람 따라서 이동
+-공 순서 배열
+- 4n+1에 다음으로 잘 가는지
+- 공을 처음 잘 맞는지
+- 공 안맞는 경우 잘 되는지
+- 점수 계산 몇번쨰인지 잘 되는지
+- 바뀐 후 잘 이동하는지
+*/
+//변수/////////////////////////////////////
+
 int N, M, K;
 
 int board[25][25];
-
+int road[25][25];
 int visited[25][25];
 
-int player[25][25];
 
-struct Player {
+struct player
+{
     deque<pair<int, int>> dq;
 };
-vector<Player> P;
+vector<player> P;
 
+
+//우상좌하
+int dr[4] = { 0,-1,0,1 };
+int dc[4] = { 1,0,-1,0 };
+
+
+tuple<int, int, int> ball[100];
 
 int turn;
 
+int score;
 
-////////////////////////////////////////////////////////////
+//함수///////////////////////////////////
 
-/*
-0.
-board - 0빈칸, 1사람
-player - 0빈칸, 1~ 그룹 번호
-각 group은 구조체로 관리. 안에 vector<pai<int,in>>로 머리부터 순서대로 격자 저장
--> 움직일떄 순서대로 한칸씩 전진하고, 방향 바뀔떈 [0] 이랑 [마지막]만 swap하기
-
-
-0. 연결요소
-- board 는 그대로 1234받아와서 dfs돌리면서 구조체를 거기서 만들어야함.
-- 각 좌표값 vector에 넣기
-- 다 정햇으면 그 인덱스로 통일해서 보드에 덮어씌우기
-
-1. 각 팀 이동
-- vector[0] 입장에서 4방향 중에 board가 자기 인덱스이고, player가 0인 곳으로 한칸 전진한 곳의 칸을 return
-- 리턴받아서 vector의 맨앞으로 만들기. 그 뒤에다가 pop_back한 벡터를 이어붙이기
-
-
-2. 공 던지기
-- 공 던져지는 행이나 열을 이중포문 돌면서 매치시키기
-- 그 해당 열이나 행에 작은 것부터 for문 돌렸을떄 가장 먼저 맞는 그룹번호랑 좌표 tuple로 return
-- 벡터에서 하나씩 꺼내서 그 해당 좌표에 해당하는 값의 인덱스 return
-- 인덱스 리턴받아서 k제곱을 전체 score에 더하기.
-- 그 그룹 방향 바꾸기
-
-
-엣지 케이스
-1. n=3, m=1, k=1000
-2. n=20, m=5, k=1000
-3. 바로 옆칸이 다른 놈들의 길인 경우
-
-
-*/
-
-int dr[4] = { -1,1,0,0 };
-int dc[4] = { 0,0,-1,1 };
-pair<int,int> ball[4][25];
-
-int score = 0;
-
-
-//////////////////////////////////////////////
+int inrange(int r, int c)
+{
+    return (r >= 1 && r <= N && c >= 1 && c <= N);
+}
 
 void reset_visited()
 {
@@ -85,27 +91,29 @@ void reset_visited()
     }
 }
 
-int inrange(int r, int c)
+void reset_road()
 {
-    return (r >= 1 && r <= N && c >= 1 && c <= N);
+    for (int i = 1; i <= N; i++)
+    {
+        for (int j = 1; j <= N; j++)
+        {
+            road[i][j] = -1;
+        }
+    }
 }
 
-void dfs(int r, int c, int idx)
+void bfs(int r, int c, int idx)
 {
+    reset_visited();
+
     queue<pair<int, int>> q;
     q.push({ r,c });
     visited[r][c] = 1;
-    board[r][c] = idx;
-
-    if (player[r][c] == 1)
-    {
-        P[idx].dq.push_back({ r,c });
-    }
-
 
     while (!q.empty())
     {
         pair<int, int> p = q.front();
+        road[p.first][p.second] = idx;
         q.pop();
 
         for (int i = 0; i < 4; i++)
@@ -118,308 +126,218 @@ void dfs(int r, int c, int idx)
                 continue;
             }
 
-            if (board[newr][newc] != 0 && visited[newr][newc] == 0)
+            if (visited[newr][newc]==0 &&
+                ((board[p.first][p.second] == 1 && board[newr][newc] == 2)
+                || (board[p.first][p.second] == 2 && board[newr][newc] == 3)
+                || (board[p.first][p.second] == 2 && board[newr][newc] == 2)
+                || (board[p.first][p.second] == 3 && board[newr][newc] == 4)
+                || (board[p.first][p.second] == 3 && board[newr][newc] == 1)
+                || (board[p.first][p.second] == 4 && board[newr][newc] == 1)
+                || (board[p.first][p.second] == 4 && board[newr][newc] == 4)
+                ))
             {
-                q.push({ newr, newc });
+                q.push({ newr,newc });
                 visited[newr][newc] = 1;
-                board[newr][newc] = idx;
 
-                if (player[newr][newc] == 1)
+                if (board[newr][newc] == 2 || board[newr][newc] == 3)
                 {
                     P[idx].dq.push_back({ newr,newc });
                 }
-            }
-        }
-    }
-}
-
-void component()
-{
-    reset_visited();
-
-    int idx = 0;
-
-    for (int i = 1; i <= N; i++)
-    {
-        for (int j = 1; j <= N; j++)
-        {
-            if (visited[i][j] == 0 && board[i][j]!=0)
-            {
-                idx++;
-                dfs(i, j, idx);
-            }
-        }
-    }
-}
-
-void move_one(int r, int c)
-{
-    int idx = board[r][c];
-
-    int prev_r = r;
-    int prev_c = c;
-
-    while (player[r][c] != 3)
-    {
-        for (int i = 0; i < 4; i++)
-        {
-            int newr = r + dr[i];
-            int newc = c + dc[i];
-
-            if (!inrange(newr, newc))
-            {
-                continue;
-            }
-
-            if (newr == prev_r && newc == prev_c)
-            {
-                continue;
-            }
-
-            if ((((player[r][c] == 1 && player[newr][newc] == 2) || (player[r][c] == 2 && (player[newr][newc] == 3|| player[newr][newc] == 2))) && board[newr][newc] == idx))
-            {
-                P[idx].dq.push_back({ newr,newc });
-
-                prev_r = r, prev_c = c;
-
-                r = newr;
-                c = newc;
 
                 break;
             }
         }
     }
-
 }
 
-void update_struct()
+void ball_array()
 {
-    for (int i = 1; i <=M; i++)
+    for (int n = 1; n < 4 * N; n += N)
     {
-        int r = P[i].dq[0].first;
-        int c = P[i].dq[0].second;
+        if (1 <= n && n <= N)
+        {
+            for (int i = 1; i <= N; i++)
+            {
+                ball[n + i - 1] = { 0,i,1 };
+            }
 
-        move_one(r, c);
+        }
+
+        if (N + 1 <= n && n <= 2 * N)
+        {
+            for (int i = 1; i <= N; i++)
+            {
+                ball[n + i - 1] = { 1,N,i };
+            }
+        }
+
+        if (2 * N + 1 <= n && n <= 3 * N)
+        {
+            for (int i = N; i >= 1; i--)
+            {
+                ball[n + (N - i)] = { 2,i,N };
+            }
+        }
+
+
+
+        if (3 * N + 1 <= n && n < 4 * N)
+        {
+            for (int i = N; i > 1; i--)
+            {
+                ball[n + (N - i)] = { 3,1,i };
+            }
+        }
     }
-}
 
-void ball_update()
-{
-    for (int i = 1; i <=N; i++)
-    {
-        ball[0][i] = { i,1 };
-        ball[1][i] = { i,2 };
-        ball[2][i] = { N-i+1,-1 };
-        ball[3][i] = { N-i+1,-2 };
-    }
-}
+    ball[0] = { 3,1,1 };
 
+}
 
 void step0()
 {
-    component();
-    update_struct();
-    ball_update();
+    reset_road();
+
+    for (int i = 0; i < P.size(); i++)
+    {
+        int r = P[i].dq.front().first;
+        int c = P[i].dq.front().second;
+
+        bfs(r, c, i);
+    }
 }
 
 
 
-void move_one_step(int i)
+pair<int,int> next_head(int idx)
 {
-    int r = P[i].dq[0].first;
-    int c = P[i].dq[0].second;
+    int r = P[idx].dq.front().first;
+    int c = P[idx].dq.front().second;
 
-    for (int d = 0; d < 4; d++)
+    for (int i = 0; i < 4; i++)
     {
-        int newr = r + dr[d];
-        int newc = c + dc[d];
+        int newr = r + dr[i];
+        int newc = c + dc[i];
 
         if (!inrange(newr, newc))
         {
             continue;
         }
 
-        if ((board[newr][newc] == board[r][c]) && player[newr][newc] != 2)
+        if (board[newr][newc] == 3 || board[newr][newc] == 4)
         {
-            player[P[i].dq.back().first][P[i].dq.back().second]=0;
-
-            P[i].dq.pop_back();
-
-            player[P[i].dq.back().first][P[i].dq.back().second] = 3;
-
-
-            player[P[i].dq.front().first][P[i].dq.front().second] = 2;
-
-            P[i].dq.push_front({ newr,newc });
-
-            player[P[i].dq.front().first][P[i].dq.front().second] = 1;
-
-            break;
+            return { newr, newc };
         }
     }
+    return { -1,-1 };
+}
+
+void move_one(int idx)
+{
+    pair<int, int> p = next_head(idx);
+
+    board[P[idx].dq.front().first][P[idx].dq.front().second] = 2;
+    board[P[idx].dq.back().first][P[idx].dq.back().second] = 4;
+
+    P[idx].dq.push_front({ p.first, p.second });
+    P[idx].dq.pop_back();
+
+    board[P[idx].dq.front().first][P[idx].dq.front().second] = 1;
+    board[P[idx].dq.back().first][P[idx].dq.back().second] = 3;
 }
 
 void step1()
 {
-    for (int i = 1; i <= M; i++)
+    for (int i = 0; i < P.size(); i++)
     {
-        move_one_step(i);
+        move_one(i);
     }
 }
 
 
 
-pair<int,int> throw_ball()
+
+tuple<int,int,int> throw_ball()
 {
-    int cur_turn = turn % (4 * N);
-    if (cur_turn == 0)
+    int n = turn % (4 * N);
+
+    tuple<int, int, int> t = ball[n];
+
+    int r = get<1>(t);
+    int c = get<2>(t);
+    int d = get<0>(t);
+
+    for(int i=0; i<N; i++)
     {
-        cur_turn = 4 * N;
-    }
+        int newr = r + dr[d]*i;
+        int newc = c + dc[d]*i;
 
-    int I = cur_turn % (N);
-
-    if (I == 0)
-    {
-        I = N;
-    }
-
-    if (cur_turn <= N)
-    {
-        return ball[0][I];
-    }
-
-    else if (cur_turn <= 2*N)
-    {
-        return ball[1][I];
-    }
-
-    else if (cur_turn <= 3*N)
-    {
-        return ball[2][I];
-    }
-
-    else
-    {
-        return ball[3][I];
-    }
-}
-
-
-tuple<int,int,int> find_attack(int p1, int p2)
-{
-    if (p2 == 1)
-    {
-        for (int i = 1; i <= N; i++)
+        if (!inrange(newr, newc))
         {
-            if (player[p1][i] != 0)
-            {
-                return { board[p1][i], p1,i };
-            }
+            return { -1,-1,-1 };
         }
-    }
 
-    if (p2 == 2)
-    {
-        for (int i = N; i >= 1; i--)
+        if (board[newr][newc] == 1 || board[newr][newc] == 2 || board[newr][newc] == 3)
         {
-            if (player[i][p1] != 0)
-            {
-                return { board[i][p1],i,p1 };
-            }
-        }
-    }
-
-    if (p2 == -1)
-    {
-        for (int i = N; i >= 1; i--)
-        {
-            if (player[p1][i] != 0)
-            {
-                return { board[p1][i],p1,i };
-            }
-        }
-    }
-
-    if (p2 == -2)
-    {
-        for (int i = 1; i <= N; i++)
-        {
-            if (player[i][p1] != 0)
-            {
-                return { board[i][p1],i,p1 };
-            }
+            return { road[newr][newc],newr,newc };
         }
     }
 
     return { -1,-1,-1 };
 }
 
-void attack(int i, int r, int c)
+void cal_score(int r, int c, int idx)
 {
-    int d;
-
-    for (int idx = 0; idx < P[i].dq.size(); idx++)
+    for (int i = 0; i < P[idx].dq.size(); i++)
     {
-        if (P[i].dq[idx].first == r && P[i].dq[idx].second == c)
+        if (P[idx].dq[i].first == r && P[idx].dq[i].second==c)
         {
-            d = idx+1;
-            break;
+            score += ((i+1)*(i+1));
+            return;
         }
     }
-
-    score += (d * d);
-
-    reverse(P[i].dq.begin(), P[i].dq.end());
-
-    player[P[i].dq.front().first][P[i].dq.front().second] = 1;
-    player[P[i].dq.back().first][P[i].dq.back().second] = 3;
 }
 
 void step2()
 {
-    pair<int, int> p = throw_ball();
+    tuple<int,int,int> t = throw_ball();
 
-    tuple<int,int,int> t = find_attack(p.first, p.second);
+    int i = get<0>(t);
+    int r = get<1>(t);
+    int c = get<2>(t);
 
-    if (get<0>(t) == -1)
+    if (i == -1)
     {
         return;
     }
 
-    attack(get<0>(t), get<1>(t), get<2>(t));
+    cal_score(r, c, i);
+
+    board[P[i].dq.front().first][P[i].dq.front().second] = 3;
+    board[P[i].dq.back().first][P[i].dq.back().second] = 1;
+
+    reverse(P[i].dq.begin(), P[i].dq.end());
+
+
 }
 
 
 
-///////////////////////////////
+////////////////////////////////////
 
-void cout_visited()
+
+void cout_road()
 {
     for (int i = 1; i <= N; i++)
     {
         for (int j = 1; j <= N; j++)
         {
-            cout << visited[i][j] << " ";
+            cout << road[i][j] << " ";
         }
         cout << "\n";
     }
     cout << "\n\n";
 }
-
-void cout_ball()
-{
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 1; j <= N; j++)
-        {
-            cout << ball[i][j].first << " ";
-        }
-        cout << "\n";
-    }
-    cout << "\n\n";
-}
-
 
 void cout_board()
 {
@@ -434,22 +352,9 @@ void cout_board()
     cout << "\n\n";
 }
 
-void cout_player()
+void cout_dq()
 {
-    for (int i = 1; i <= N; i++)
-    {
-        for (int j = 1; j <= N; j++)
-        {
-            cout << player[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "\n\n";
-}
-
-void cout_v()
-{
-    for (int i = 1; i <= M; i++)
+    for (int i = 0; i < P.size(); i++)
     {
         for (int j = 0; j < P[i].dq.size(); j++)
         {
@@ -457,25 +362,42 @@ void cout_v()
         }
         cout << "\n\n";
     }
+    cout << "\n\n";
+}
+
+void cout_ball()
+{
+    for (int i = 0; i < 4 * N; i++)
+    {
+        tuple<int, int, int> t = ball[i];
+
+        cout << get<0>(t) << " " << get<1>(t) << " " << get<2>(t) <<"\n";
+    }
+    cout << "\n\n";
 }
 
 
+///////////////////////////
 
-//////////////////////////////////////////////////////////////
+void reset()
+{
+    P.clear();
+    score = 0;
+}
 
+//////////////////////////////////////////////////////
 int main(int argc, char** argv)
 {
-    int test_case;
-    int T;
-
 
         int n;
-        score = 0;
-        P.clear();
 
         cin >> N >> M >> K;
-        P.resize(M + 1);
 
+        //초기화///////////////////////////////////
+        reset();
+
+        ///////////////////////////////////
+        
         for (int i = 1; i <= N; i++)
         {
             for (int j = 1; j <= N; j++)
@@ -483,18 +405,23 @@ int main(int argc, char** argv)
                 cin >> n;
 
                 board[i][j] = n;
-                if (n != 0 && n!=4)
+
+                if (n == 1)
                 {
-                    player[i][j] = n;
+                    deque<pair<int, int>> dq;
+                    dq.push_front({ i,j });
+                    P.push_back({ dq });
                 }
             }
         }
 
 
-        /////////////////////////////////////////
-        
+        //출력///////////
+
 
         step0();
+
+        ball_array();
 
         for (turn = 1; turn <= K; turn++)
         {
@@ -502,8 +429,9 @@ int main(int argc, char** argv)
 
             step2();
         }
+
         cout << score;
 
-
-    return 0; //정상종료시 반드시 0을 리턴해야합니다.
+    
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
