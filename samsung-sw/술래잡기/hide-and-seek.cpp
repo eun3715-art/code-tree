@@ -1,85 +1,59 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include<iostream>
 #include <cstdio>
-#include <cstdlib>
 #include <vector>
+#include <deque>
 #include <queue>
+#include <tuple>
 #include <algorithm>
-
-
-//////////////////////////////////////////////
+////////////////////////////////////////////////
 using namespace std;
-
-/////////////////////////////////////////////
-//변수 선언
-
-
+////////////////////////////////////////////////////
 /*
-0.
-board : 0 빈칸, 1 나무
-vector<int> v[][]로 도망자 인덱스를 누적
-구조체 : 도망자 각각의 방향 저장
+0. 
 
+구조체로 각 도망자의 위치와 방향 갱신
+tree:나무잇는곳 1
 
 1. 도망자 이동
-- 구조체 순환하면서 규칙대로 이동
-- 거리 3이하인 애들만
--  die=0인 애들만
-- vector<int> 업뎃
-
-2. 술래 이동 
-- 방향을 상우하좌 순서대로 0123. 해놓자
-- 칸을 미리 다 저장해놓자 순서대로. vecto<int> 에 처음부터 끝까지 이동방향을 순서대로 저장해놓자
-- 끝에 도달하면 각 이동방향에 +2%4 하면 됨. 다시 중앙에 도착하면 +2%4하기.
-- 다음 이동방향으로 시선방향 업뎃하기
-- 술래 좌표 갱신
+- M개의 각 도망자에 대해 거리가 3이하인지, die=0인지 확인
+- 도망 칠 애들 정햇으면 그 애들만 도망실시
+- 도망로직에 따라 이동
 
 
-3. 술래 잡기
-- 그 시선대로 3칸 중 나무가 아닌 애들 잡아서 점수 갱신
-- 격자 안넘어가게
-- 잡힌 애들은 구조체에서 die=1로 갱신
+2. 술래 이동
+- 역방향에서 오면서 범위벗어나거나 visit햇으면 반시계로 방향전환
+- 술래잡기: 모든 도망자 돌면서 해당칸에 들어가는 여부 확인
 
-엣지 케이스
-1. n=5, m=1, h=1, k=1.
-2. n=99, m=99제곱-1, h=99제곱, k=100.
-3. 도망자끼리 겹칠떄 이동 잘 되는지, 그리고 그 칸이 잡혓을때 점수갱신 잘 되는지
-4. 술래 방향전환 잘 되는지. 마지막에 방향 업뎃 잘 되는지
-5. 나무에서 안 잡히는지
-6. 술래 3칸이 격자 범위 안넘도록 잘되는지
-7. main에서 테케마다 초기화 잘하기
 */
-
+//변수/////////////////////////////////////
 
 int N, M, H, K;
 
-int board[110][110];
-vector<int> runner[110][110];
+int tree[100][100];
+int visited[100][100];
 
-int sr, sc, sd;
-
-
-
-struct Runner
+struct runner
 {
-    //1이 우, 2가 하, 3은 좌, 0이 상 -> 상우하좌 순서로 d를 갱신
-    int r,c,d;
+    int r, c,d;
     int die = 0;
 };
-vector<Runner> R;
+vector<runner> R;
 
-int dr[4] = { -1,0,1,0 };
-int dc[4] = { 0,1,0,-1 };
+//0상, 1우, 2하, 3:좌 -> 방향전환 시 2더하면 죔
+int dr[4] = {-1, 0, 1, 0};
+int dc[4] = {0, 1, 0, -1};
 
-vector<int> dir_v;
+int sr, sc;
+
+vector<int> v1;
+vector<int> v2;
 
 int turn;
 
-int cur_turn;
+int score = 0;
 
-int score;
-
-//////////////////////////////////////////////////////////////
+//함수///////////////////////////////////\
 
 
 
@@ -89,280 +63,226 @@ int inrange(int r, int c)
 }
 
 
-void cal_dir_v()
+void reset_visited()
 {
-    int newr = sr;
-    int newc = sc;
-
-    int d = 0;
-
-    int s = 2;
-
-    int temp = 0;
-
-    while (temp == 0)
+    for (int i = 1; i <= N; i++)
     {
-        int round = s / 2;
-
-        for (int i = 0; i < round; i++)
+        for (int j = 1; j <= N; j++)
         {
-            newr += dr[d];
-            newc += dc[d];
-
-            if (!inrange(newr, newc))
-            {
-                temp = 1;
-                break;
-            }
-
-            dir_v.push_back({ d });
+            visited[i][j] = 0;
         }
-
-        d = (d + 1) % 4;
-
-        s++;
-    }
-
-    vector<int> reverse_dir_v = dir_v;
-
-    reverse(reverse_dir_v.begin(), reverse_dir_v.end());
-
-
-    for (int a = 0; a < reverse_dir_v.size(); a++)
-    {
-        reverse_dir_v[a] = (reverse_dir_v[a] + 2) % 4;
-    }
-
-    for (int a : reverse_dir_v)
-    {
-        dir_v.push_back(a);
     }
 }
 
+
+void soolrae()
+{
+    reset_visited();
+
+    int d = 2;
+    int r = 1, c = 1;
+    visited[r][c] = 1;
+
+    while (r != sr || c != sc)
+    {
+        int newr = r + dr[d];
+        int newc = c + dc[d];
+
+        if (!inrange(newr, newc) || visited[newr][newc])
+        {
+            d = (d + 3) % 4;
+            newr = r + dr[d];
+            newc = c + dc[d];
+        }
+
+        r = newr;
+        c = newc;
+        v1.push_back(d);
+        v2.push_back((d + 2) % 4);
+        visited[newr][newc] = 1;
+    }
+
+    reverse(v2.begin(), v2.end());
+
+    v2.insert(v2.end(), v1.begin(), v1.end());
+}
 
 void step0()
 {
-    cal_dir_v();
+    soolrae();
 }
 
-int cal_dist(int r1, int c1, int r2, int c2)
-{
-    return abs(r1 - r2) + abs(c1 - c2);
-}
 
-int must_move(int i)
+void move_one(int num)
 {
-    if (R[i].die == 0 && cal_dist(R[i].r, R[i].c, sr, sc) <= 3)
+    int r = R[num].r;
+    int c = R[num].c;
+    int d = R[num].d;
+
+    int newr = r + dr[d];
+    int newc = c + dc[d];
+
+    if (!inrange(newr, newc))
     {
-        return 1;
+        d = (d + 2) % 4;
+        newr = r + dr[d];
+        newc = c + dc[d];
+        R[num].d = d;
     }
 
-    return 0;
+    if (newr == sr && newc == sc)
+    {
+        return;
+    }
+
+    R[num].r=newr;
+    R[num].c=newc;
 }
 
-
-
-void move_one(int i)
+int cal_dist(int r, int c)
 {
-    int newr = R[i].r + dr[R[i].d];
-    int newc = R[i].c + dc[R[i].d];
-
-    if (inrange(newr, newc))
-    {
-        if (newr == sr && newc == sc)
-        {
-            return;
-        }
-
-        runner[R[i].r][R[i].c].erase(remove(runner[R[i].r][R[i].c].begin(), runner[R[i].r][R[i].c].end(), i), runner[R[i].r][R[i].c].end());
-        R[i].r = newr;
-        R[i].c = newc;
-        runner[R[i].r][R[i].c].push_back(i);
-    }
-
-    else
-    {
-        R[i].d = (R[i].d + 2) % 4;
-
-        move_one(i);
-    }
+    return abs(r - sr) + abs(c - sc);
 }
+
 
 void step1()
 {
-    for (int i = 1; i <= M; i++)
+    for (int i = 0; i < M; i++)
     {
-        if (must_move(i))
+        if (R[i].die == 0 && cal_dist(R[i].r, R[i].c) <= 3)
         {
             move_one(i);
         }
     }
 }
 
-
-
-void step2()
+void is_runner(vector<pair<int, int>> v)
 {
-    sr += dr[dir_v[cur_turn]];
-    sc += dc[dir_v[cur_turn]];
-
-    if (cur_turn!=0 && (cur_turn % (2 * N*N - 3) == 0))
+    for (int i = 0; i < M; i++)
     {
-        cur_turn = -1;
-    }
-
-    sd = dir_v[cur_turn + 1];
-}
-
-
-void catch_runner (int r, int c)
-{
-    int num = 0;
-
-    for (int i : runner[r][c])
-    {
-        if (i == 0)
+        if (R[i].die)
         {
             continue;
         }
 
-        R[i].die = 1;
-        num++;
+        if (tree[R[i].r][R[i].c] == 0)
+        {
+            if (find(v.begin(), v.end(), make_pair(R[i].r, R[i].c)) != v.end())
+            {
+                R[i].die = 1;
+                score += (turn + 1);
+            }
+        }
     }
-
-    runner[r][c].clear();
-    runner[r][c].push_back(0);
-
-    score += ((turn + 1)*num);
 }
 
-void step3()
+void catch_runenr()
 {
+    int n = turn % v2.size();
+
+    int d = v2[n];
+
+    sr += dr[d];
+    sc += dc[d];
+
+    int sight = v2[(n + 1) % v2.size()];
+
+    vector<pair<int,int>> v;
+
     for (int i = 0; i < 3; i++)
     {
-        int newr = sr + dr[sd]*i;
-        int newc = sc + dc[sd]*i;
+        int newr = sr + dr[sight] * i;
+        int newc = sc + dc[sight] * i;
 
         if (!inrange(newr, newc))
         {
             continue;
         }
 
-        if (board[newr][newc] == 0 && runner[newr][newc].size() > 1)
-        {
-            catch_runner(newr,newc);
-        }
+        v.push_back({ newr,newc });
     }
+
+    is_runner(v);
 }
 
+void step2()
+{
+    catch_runenr();
+
+}
+
+////////////////////////////////////
 
 
 
 
-////////////////////////////////////////////////////////////////////
+///////////////////////////
 
 void cout_runner()
 {
-    for (int i = 1; i <= N; i++)
+    for (int i = 0; i < M; i++)
     {
-        for (int j = 1; j <= N; j++)
-        {
-            for (int a : runner[i][j])
-            {
-                cout << a << ",";
-            }
-            cout << " ";
-        }
-        cout << "\n";
+        cout << R[i].r << " " << R[i].c << " " << R[i].d << "\n";
     }
     cout << "\n\n";
+
 }
 
-void cout_dir_v()
+void cout_v2()
 {
-    for (int p : dir_v)
+    for (int i = 0; i < v2.size(); i++)
     {
-        cout << p << "\n";
+        cout << v2[i] << "\n";
     }
     cout << "\n\n";
 }
 
 
-void cout_board()
-{
-    for (int i = 1; i <= N; i++)
-    {
-        for (int j = 1; j <= N; j++)
-        {
-            cout << board[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "\n\n";
-}
-
-//////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////
 int main(int argc, char** argv)
 {
-    int test_case;
-    int T;
 
-
+        //입력/////////////
         int x, y, d;
-        int x1, y1;
-        
+
         cin >> N >> M >> H >> K;
+        R.resize(M);
 
         sr = N / 2 + 1;
         sc = N / 2 + 1;
-        sd = 0;
-        score = 0;
-        turn = 0;
 
-        R.resize(M + 1);
-
-        for (int i = 1; i <= N; i++)
-        {
-            for (int j = 1; j <= N; j++)
-            {
-                runner[i][j].push_back(0);
-            }
-        }
-
-        for (int i = 1; i <= M; i++)
+        for (int i = 0; i < M; i++)
         {
             cin >> x >> y >> d;
             R[i].r = x;
             R[i].c = y;
             R[i].d = d;
-            runner[x][y].push_back(i);
         }
-
-
 
         for (int i = 0; i < H; i++)
         {
-            cin >> x1 >> y1;
+            cin >> x >> y;
 
-            board[x1][y1] = 1;
+            tree[x][y] = 1;
         }
 
-
-
-        ///////////////////////////////////////////////////////
-
-        //cur_turn 같이 더하기
-
-        step0();
+        //초기화///////////////////////////////////
         
-        for (turn = 0; turn < K; turn++)
+
+        ///////////////////////////////////
+        
+        
+
+
+        //출력///////////
+        step0();
+
+        for (turn=0; turn < K; turn++)
         {
             step1();
             step2();
-            step3();
-
-            cur_turn++;
         }
+
         cout << score;
 
     
