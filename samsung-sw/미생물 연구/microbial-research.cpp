@@ -1,172 +1,441 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include<iostream>
-#include<cstdio>
-#include<vector>
-#include<set>
-#include<algorithm>
-#include<queue>
+#include <cstdio>
+#include <queue>
+#include <vector>
+#include <set>
 
-////////////////////////////////////////////////////////////////
-using namespace std;
-////////////////////////////////////////////////////////////////
 /*
-0. 입력되는 y좌표를 N-c로 변환하면 똑같이 격자로 보면 됨 -> 좌측 상단 0,0 우측하단 N,N
+///////////////////////////////////////////////////////////////////////////////
+
+using namespace std;
+///////////////////////////////////////////////////////////////////////////////
+
+상우하좌
+0123
+
+int board로 그냥 구현해놓자
+
+
+1. 다음 칸이 0이 아닌 경우
+- 현재 방향에 따라 다름
+
+
+
+1. 한 칸 이동을 반복
+- 보드 0이면 다시 반복
+- 벽이거나 1~5면 위 방향 전환 실행 : 점수 ++
+- -1이면 종료
+- 시작위치면 종료
+- 웜홀이면 다른 곳으로 이동
+
+
+주의
+1. 벽돌끼리 바로 옆에 겹치겨나 벽 바로 옆에 벽돌 잇는 경우 : 한칸 단위로 막 바뀌니까 로직 잘봐야함
+2. 웜홀에서 나오자마자 다음 벽이거나 벽돌인 경우
+3. 웜홀이 벽과 벽돌 중간 사이에 잇을떄 -> 점수계산 잘해야함
+
+
+
+//변수/////////////////////////////////////////////////////////////////////////////
+
+int N;
+
+int board[110][110];
+
+int dr[4] = { -1,0,1,0 };
+int dc[4] = { 0,1,0,-1 };
+
+int sr, sc;
+int r, c,d;
+
+int score=0;
+
+vector<vector<pair<int, int>>> warmhole;
+
+//함수/////////////////////////////////////////////////////////////////////////////
+
+int inrange(int r, int c)
+{
+    return (r >= 1 && r <= N & c >= 1 && c <= N);
+}
+
+void block(int n)
+{
+
+    if (d == 0)
+    {
+        if (n == 1 || n == 4 || n == 5)
+        {
+            d = 2;
+            return;
+        }
+
+        else if (n == 2)
+        {
+            d = 1;
+            return;
+        }
+        else
+        {
+            d = 3;
+            return;
+        }
+    }
+
+    if (d == 1)
+    {
+        if (n == 1 || n == 2 || n == 5)
+        {
+            d = 3;
+            return;
+        }
+
+        else if (n == 3)
+        {
+            d = 2;
+            return;
+        }
+        else
+        {
+            d = 0;
+            return;
+        }
+    }
+
+    if (d == 2)
+    {
+        if (n == 2 || n == 3 || n == 5)
+        {
+            d = 0;
+            return;
+        }
+
+        else if (n == 1)
+        {
+            d = 1;
+            return;
+        }
+        else
+        {
+            d = 3;
+            return;
+        }
+    }
+
+    if (d == 3)
+    {
+        if (n == 3 || n == 4 || n == 5)
+        {
+            d = 1;
+            return;
+        }
+
+        else if (n == 1)
+        {
+            d = 0;
+            return;
+        }
+        else
+        {
+            d = 2;
+            return;
+        }
+    }
+
+}
+
+int move_one()
+{
+    //현재 지점이 웜홀, 블랙홀, 블럭인 경우
+
+
+    if (board[r][c] == -1)
+    {
+        return -1;
+    }
+
+
+    int newr = r;
+    int newc = c;
+    
+    //현재가 빈칸일떄 다음으로 이동해서 로직 실행, 이미 블럭이나 웜홀이면 그 칸을 처리
+
+    if (board[r][c] == 0)
+    {
+        newr = r + dr[d];
+        newc = c + dc[d];
+    }
+
+
+    //벽 만난 경우
+    if (!inrange(newr, newc))
+    {
+        d = (d + 2) % 4;
+
+        newr = r + dr[d];
+        newc = c + dc[d];
+
+        score++;
+
+        r = newr;
+        c = newc;
+
+        return;
+    }
+
+    //그냥 빈칸인 경우
+    if (board[newr][newc] == 0)
+    {
+        r = newr;
+        c = newc;
+
+        return;
+    }
+
+    //블럭
+    if (board[newr][newc] >= 1 && board[newr][newc] <= 5)
+    {
+        block(board[newr][newc]);
+    }
+
+
+
+    //웜홀
+
+
+    //블랙홀
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+void all_step()
+{
+
+}
+
+int step()
+{
+    for (int i = 1; i <= N; i++)
+    {
+        for (int j = 1; j <= N; j++)
+        {
+            for (int k = 0; k < 4; k++)
+            {
+                sr = i, sc = j;
+                r = i, c = j, d=k;
+
+                all_step();
+            }
+        }
+    }
+}
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+
+int main(int argc, char** argv)
+{
+    int test_case;
+    int T;
+    
+    freopen("input.txt", "r", stdin);
+
+    cin >> T;
+
+    for (test_case = 1; test_case <= T; ++test_case)
+    {
+        //입력
+    
+
+
+        //초기화
+
+        //출력
+
+
+
+
+    }
+    return 0;//정상종료시 반드시 0을 리턴해야합니다.
+}
+
+*/
+
+
+/*
+행 아래가 0, 우측 상단이 n임
 
 1. 미생물 투입
--그냥 그대로 일단 board 갱신
--컴포넌트 세는 로직 -> bfs : 각 미생물의 그룹이 몇개인지 알수잇음 : 이중 포문 돌면서 모든 칸에 대한 생물의 그룹 개수르 ㄹ세고 각 인덱스에 맞게 배열에 저장. -> visited 처리 잘하기
--그룹 쪼개진 애들은 모두 모두 board 0으로 갱신
+- 투입된 곳을 전부 그 미생물 값으로 바꾼다.
 
-2. 용기 이동
--이중포문 돌면서 각 미생물 넓이 세서 큰 순대로 set에 (넓이, 인덱스) 순서로 삽입 : 넓이 배열에 각 인덱스의 넓이에 대한것도 만들어 놓자
--set 순서대로 배치
--이중벡터로 각 인덱스에 해당하는 것의 정규화된 상대좌표를 저장 -> 왼쪽 하단을 0,N으로 정규화하자. _> 이중 포문 돌릴떄 반대로 하면 됨
--set에서 한개 꺼내면서 상대좌표를 이용해서 위치 설정 :  각 점의 보드가 0인지 일일이 점검 -> 모든 점이 통과되면 그곳으로 정하기 :
--벡터에서 다 꺼내면 라운드1 끝
+2. 연결요소를 센다. : bfs -> 2개 이상이면 그 visited 값은 전부 삭제
 
-3. 넓이 계산
--bfs 돌리면서 그 보드가 미생물 인덱스랑 다르다 && 0이 아니다 : 넓이 계산 -> bfs로 visited 해놓고 이미 확인한 곳은 안 건들도록 해야함
+3. 이동
+- 넓이, 인덱스 작은 순서대로 set에 저장
+- set에서 하나씩 꺼내면서 x,y좌표 제일 작은 쪽으로 배치
+- 범위 넘어가서 놔둬야 하면 사라진다.
 
-/////////////////////////////////////////
+4. 아까 잿던 넓이 대로 곱한다. 
+중복 안하도록 잘해야함
 
-set에 아무것도 없는 경우 잘 봐야함 버즈에러 안나게
-초기화 신경 쓰기
-
-/////////////////////////////////////
 */
-////////////////////////////////////////////////////////////////
-//변수선언
+
+
+using namespace std;
+
+
+//변수
 int N, Q;
 
-struct Bio
-{
-    int r1,c1,r2,c2;
-};
-vector<Bio> bio;
-
 int board[20][20];
-int new_board[20][20];
-
-//turn 1부터 하기
-int turn;
-
-int dr[4]={-1,1,0,0};
-int dc[4]={0,0,-1,1};
-
+int newboard[20][20];
 int visited[20][20];
+
+int near[60][60];
+
+struct bio
+{
+    int r1, c1, r2, c2;
+    int die = 0;
+    vector<pair<int, int>> v;
+};
+vector<bio> B;
+
+int turn = 1;
+
 int group[60];
-int area[60];
 
-set<pair<int,int>> s;
+set<pair<int, int>> s;
 
-vector<pair<int,int>> v[60];
+int dr[4] = { -1,1,0,0 };
+int dc[4] = { 0,0,-1,1 };
 
-int ans;
+int score = 0;
 
-////////////////////////////////////////////////////////////////
-//함수 제작
+///////////////////////
+
+void step1()
+{
+    int r1 = B[turn].r1;
+    int r2 = B[turn].r2;
+    int c1 = B[turn].c1;
+    int c2 = B[turn].c2;
+
+    for (int i = r1; i < r2; i++)
+    {
+        for (int j = c1; j < c2; j++)
+        {
+            board[i][j] = turn;
+        }
+    }
+}
+
+
+
+
 void reset_visited()
 {
-    for(int i=0; i<=N; i++)
+    for (int i = 0; i < N; i++)
     {
-        for(int j=0; j<=N; j++)
+        for (int j = 0; j < N; j++)
         {
-            visited[i][j]=0;
+            visited[i][j] = 0;
         }
     }
 }
 
-void reset_new_board()
+void reset_near()
 {
-    for(int i=0; i<=N; i++)
+    for (int i = 1; i <= Q; i++)
     {
-        for(int j=0; j<=N; j++)
+        for (int j = 1; j <= Q; j++)
         {
-            new_board[i][j]=0;
+            near[i][j] = 0;
         }
     }
 }
 
-
-void reset_group()
+void reset_newboard()
 {
-    for(int i=1; i<=Q; i++)
+    for (int i = 0; i < N; i++)
     {
-        group[i]=0;
-    }
-}
-
-void reset_area()
-{
-    for(int i=1; i<=Q; i++)
-    {
-        area[i]=0;
+        for (int j = 0; j < N; j++)
+        {
+            newboard[i][j] = 0;
+        }
     }
 }
 
 void reset_v()
 {
-    for(int i=1; i<=Q; i++)
+    for (int i = 1; i <= Q; i++)
     {
-        v[i].clear();
+        B[i].v.clear();
     }
 }
 
-
-void into()
+void reset_group()
 {
-    int r1 = bio[turn].r1;
-    int r2 = bio[turn].r2;
-    int c1 = bio[turn].c1;
-    int c2 = bio[turn].c2;
-
-    for(int i=c1; i>c2; i--)
+    for (int i = 1; i <= Q; i++)
     {
-        for(int j=r1; j<r2; j++)
-        {
-            board[i][j]=turn;
-        }
+        group[i] = 0;
     }
 }
 
 int inrange(int r, int c)
 {
-    return (r>=0 && r<=N && c>=0 && c<=N);
+    return (r >= 0 && r < N && c >= 0 && c < N);
 }
 
-void bfs1(int r, int c)
+void bfs(int r, int c, int idx)
 {
-    queue<pair<int,int>> q; 
-    q.push({r,c});
-    visited[r][c]=1;
+    queue<pair<int, int>> q;
+    q.push({ r,c });
 
-    int idx = board[r][c];
+    visited[r][c] = idx;
+    
 
-    group[idx]++;
-
-    while(!q.empty())
+    while (!q.empty())
     {
-        pair<int,int> p = q.front();
+        pair<int, int> p = q.front();
         q.pop();
 
-        for(int i=0; i<4; i++)
+        for (int i = 0; i < 4; i++)
         {
             int newr = p.first + dr[i];
             int newc = p.second + dc[i];
 
-            if(!inrange(newr, newc))
+            if (!inrange(newr, newc))
             {
                 continue;
             }
 
-            if(visited[newr][newc])
+            if (visited[newr][newc] == 0 && board[newr][newc] == board[p.first][p.second])
             {
-                continue;
-            }
+                q.push({ newr,newc });
+                visited[newr][newc] = idx;
+                
+                int rr = newr - r;
+                int cc = newc - c;
 
-            if(board[newr][newc]==idx)
-            {
-                q.push({newr,newc});
-                visited[newr][newc]=1;
+                B[idx].v.push_back({ rr,cc });
             }
         }
     }
@@ -174,389 +443,157 @@ void bfs1(int r, int c)
 
 void cal_component()
 {
-    reset_visited();
     reset_group();
-
-    for(int i=0; i<=N; i++)
-    {
-        for(int j=0; j<=N; j++)
-        {
-            if(visited[i][j]==1 || board[i][j]==0)
-            {
-                continue;
-            }
-
-            bfs1(i,j);
-        }
-    }
-}
-
-void removing(int n)
-{
-    for(int i=0; i<=N; i++)
-    {
-        for(int j=0; j<=N; j++)
-        {
-            if(board[i][j]==n)
-            {
-                board[i][j]=0;
-            }
-        }
-    }
-}
-
-void remove_group()
-{
-    for(int i=1; i<=Q; i++)
-    {
-        if(group[i]>1)
-        {
-            removing(i);
-        }
-    }
-}
-
-void step1()
-{
-    into();
-    cal_component();
-
-    remove_group();
-}
-
-
-///////////////////////
-void bfs2(int r, int c)
-{
-    queue<pair<int,int>> q;
-
-    q.push({r,c});
-    visited[r][c]=1;
-
-    int idx = board[r][c];
-
-    int wide=0;
-
-    while(!q.empty())
-    {
-        pair<int,int> p = q.front();
-        q.pop();
-        wide++;
-
-        for(int i=0; i<4; i++)
-        {
-            int newr = p.first + dr[i];
-            int newc = p.second + dc[i];
-
-            if(!inrange(newr, newc))
-            {
-                continue;
-            }
-
-            if(visited[newr][newc])
-            {
-                continue;
-            }
-
-            if(board[newr][newc]==idx)
-            {
-                visited[newr][newc]=1;
-                q.push({newr,newc});
-            }
-        }
-    }
-
-    area[idx]=wide;
-
-    s.insert({-wide, idx});
-}
-
-void widest()
-{
-    reset_visited();
-    reset_area();
-    s.clear();
-    
-    for(int i=0; i<=N; i++)
-    {
-        for(int j=0; j<=N; j++)
-        {
-            if(visited[i][j]==1 || board[i][j]==0)
-            {
-                continue;
-            }
-
-            bfs2(i,j);
-        }
-    }
-}
-
-pair<int,int> normalize(int r, int c, int x, int y)
-{
-    int newr=r+x;
-    int newc=c-y;
-
-    return {newr,newc};
-}
-
-void bfs3(int r, int c)
-{
-    int x,y;
-
-    queue<pair<int,int>> q;
-    int idx = board[r][c];
-
-    q.push({r,c});
-    visited[r][c]=1;
-
-    x=N-r;
-    y=c;
-    pair<int,int> pp = normalize(r, c, x, y);
-    v[idx].push_back({pp.first,pp.second});
-
-    while(!q.empty())
-    {
-        pair<int,int> p = q.front();
-        q.pop();
-
-        for(int i=0; i<4; i++)
-        {
-            int newr = p.first + dr[i];
-            int newc = p.second + dc[i];
-
-            if(!inrange(newr, newc))
-            {
-                continue;
-            }
-
-            if(visited[newr][newc])
-            {
-                continue;
-            }
-
-            if(board[newr][newc]==idx)
-            {
-                visited[newr][newc]=1;
-                q.push({newr,newc});
-
-                pair<int,int> ppp = normalize(newr, newc, x, y);
-                v[idx].push_back({ppp.first, ppp.second});
-            }
-        }
-    }
-
-}
-
-void normal()
-{
     reset_visited();
     reset_v();
-    
-    for(int i=N; i>=0; i--)
-    {
-        for(int j=0; j<=N; j++)
-        {
-            if(visited[i][j]==1 || board[i][j]==0)
-            {
-                continue;
-            }
 
-            bfs3(i,j);
+    for (int i = 0; i < N; i++)
+    {
+        for (int j = 0; j < N; j++)
+        {
+            if (visited[i][j] == 0 && board[i][j] != 0)
+            {
+                int n = board[i][j];
+
+                group[n]++;
+
+                B[n].v.push_back({ 0,0 });
+
+                bfs(i, j, n);
+            }
+        }
+    }
+}
+//옮길 애들만 set에 저장
+void step2()
+{
+    cal_component();
+
+    s.clear();
+
+    for (int i = 1; i <= Q; i++)
+    {
+        if (group[i] == 1)
+        {
+            int area = B[i].v.size();
+
+            s.insert({ -area, i });
         }
     }
 }
 
 
-int can_batch(vector<pair<int,int>> new_v)
+
+
+
+int possible_drop(int n, int r, int c)
 {
-    for(pair<int,int> pp : new_v)
+    for (pair<int, int> p : B[n].v)
     {
-        if(!inrange(pp.first, pp.second))
+        int cur_r = p.first + r;
+        int cur_c = p.second + c;
+
+        if (!inrange(cur_r, cur_c))
         {
             return 0;
         }
 
-        if(new_board[pp.first][pp.second]!=0)
+        if (newboard[cur_r][cur_c] != 0)
         {
             return 0;
         }
     }
-    
+
     return 1;
 }
 
-void move_one(int r, int c, int idx, vector<pair<int,int>> &new_v)
+void redrop(int n)
 {
-    for(pair<int,int> p : v[idx])
+    for (int i = 0; i < N; i++)
     {
-        new_v.push_back({p.first - r, p.second + c});
-    }
-}
-
-
-int move_all(int idx)
-{
-    for(int i=0; i<=N; i++)
-    {
-        for(int j=0; j<=N; j++)
+        for (int j = 0; j < N; j++)
         {
-            vector<pair<int,int>> new_v;
-
-            move_one(j, i, idx, new_v);
-
-            if(can_batch(new_v)==1)
+            if (possible_drop(n,i,j) == 1)
             {
-                for(int k=0; k<v[idx].size(); k++)
+                for (pair<int, int> p : B[n].v)
                 {
-                    v[idx][k]=new_v[k];
+                    newboard[p.first + i][p.second + j] = n;
                 }
 
-                return 1;
+                return;
             }
         }
-    }
-
-    return 0;
-
-}
-
-
-void rebatch_board(int idx)
-{
-    for(pair<int,int> p : v[idx])
-    {
-        new_board[p.first][p.second]=idx;
     }
 }
 
 void board_update()
 {
-    for(int i=0; i<=N; i++)
+    for (int i = 0; i < N; i++)
     {
-        for(int j=0; j<=N; j++)
+        for (int j = 0; j < N; j++)
         {
-            board[i][j]=new_board[i][j];
+            board[i][j] = newboard[i][j];
         }
     }
 }
 
+void step3()
+{
+    reset_newboard();
 
-void step2()
-{   
-    widest();
-
-    normal();
-
-    reset_new_board();
-
-    for(pair<int,int> p: s)
+    for (pair<int, int> p : s)
     {
-        int idx = p.second;
-
-        int n = move_all(idx);
-        
-        if(n==0)
-        {
-            continue;
-        }
-        
-        rebatch_board(idx);
+        redrop(p.second);
     }
 
     board_update();
 }
 
 
-void bfs4(int r, int c)
+
+
+
+void step4()
 {
-    queue<pair<int,int>> q;
+    reset_near();
 
-    q.push({r,c});
-    visited[r][c]=1;
-
-    set<int> ss;
-
-    int idx = board[r][c];
-
-    while(!q.empty())
+    for (int i = 0; i < N; i++)
     {
-        pair<int,int> p = q.front();
-        q.pop();
-
-        for(int i=0; i<4; i++)
+        for (int j = 0; j < N; j++)
         {
-            int newr = p.first + dr[i];
-            int newc = p.second + dc[i];
-
-            if(!inrange(newr, newc))
+            for (int d = 0; d < 4; d++)
             {
-                continue;
+                int newr = i + dr[d];
+                int newc = j + dc[d];
+
+                if (!inrange(newr, newc))
+                {
+                    continue;
+                }
+
+                int n = board[i][j];
+                int m = board[newr][newc];
+
+                if (n!=m && near[n][m]==0)
+                {
+                    near[n][m] = 1;
+                    near[m][n] = 1;
+
+                    score += (B[n].v.size()*B[m].v.size());
+                }
             }
-
-            if(visited[newr][newc])
-            {
-                continue;
-            }
-
-            if(board[newr][newc]==idx)
-            {
-                visited[newr][newc]=1;
-                q.push({newr,newc});
-            }
-
-            else if(board[newr][newc]!=idx && board[newr][newc]!=0)
-            {
-                ss.insert({board[newr][newc]});
-            }
-        }
-    }
-    for(int a : ss)
-    {
-        ans += area[a] * area[board[r][c]];
-    }
-}
-
-void step3()
-{
-    reset_visited();
-
-    for(int i=0; i<=N; i++)
-    {
-        for(int j=0; j<=N; j++)
-        {
-            if(visited[i][j]==1 || board[i][j]==0)
-            {
-                continue;
-            }
-
-            bfs4(i,j);
         }
     }
 }
 
-
-////////////////////////////////////////////////////////////////
-
+////////////////////////////////////
 void cout_board()
 {
-    for(int i=0; i<=N; i++)
+    for (int i = N-1; i >=0; i--)
     {
-        for(int j=0; j<=N; j++)
+        for (int j = 0; j < N; j++)
         {
-            cout << board[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "\n\n";
-}
-
-void cout_new_board()
-{
-    for(int i=0; i<=N; i++)
-    {
-        for(int j=0; j<=N; j++)
-        {
-            cout << new_board[i][j] << " ";
+            cout << board[j][i] << " ";
         }
         cout << "\n";
     }
@@ -565,115 +602,74 @@ void cout_new_board()
 
 void cout_visited()
 {
-    for(int i=0; i<=N; i++)
+    for (int i = N - 1; i >= 0; i--)
     {
-        for(int j=0; j<=N; j++)
+        for (int j = 0; j < N; j++)
         {
-            cout << visited[i][j] << " ";
+            cout << visited[j][i] << " ";
         }
         cout << "\n";
     }
     cout << "\n\n";
 }
 
-void cout_component()
+void reset()
 {
-    for(int i=1; i<=Q; i++)
+    for (int i = 0; i < N; i++)
     {
-        cout << group[i] << " ";
-    }
-    cout <<"\n\n";
-}
-
-void cout_s()
-{
-    for(pair<int,int> p : s)
-    {
-        cout << p.first << " " << p.second <<"\n"; 
-    }
-
-    cout <<"\n\n";
-}
-
-void cout_v()
-{
-    for(int i=1; i<=Q; i++)
-    {
-        for(pair<int,int> p : v[i])
+        for (int j = 0; j < N; j++)
         {
-            cout << p.first << p.second << " "; 
+            board[i][j] = 0;
         }
-
-        cout << "\n";
     }
 
-    cout <<"\n\n";
+    B.clear();
+
+    score = 0;
 }
 
-void cout_group()
-{
-    for(int i=1; i<=Q; i++)
-    {
-        cout << group[i] << " ";
-    }
-
-    cout <<"\n\n";
-}
-
-
-
-
-////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////
 
 int main(int argc, char** argv)
 {
-    freopen("input.txt", "r", stdin);
-////////////////////////////////////////////////////////////////
-//입력
-    int n;
-    int r1,c1,r2,c2;
-    
-    cin >> N >> Q;
-    bio.resize(Q+1);
-    N--;
 
-    for(int i=1; i<=Q; i++)
-    {
-        cin >> r1 >> c1 >> r2 >> c2;
-        bio[i].r1=r1;
-        bio[i].r2=r2;
-        bio[i].c1=N-c1;
-        bio[i].c2=N-c2;
-    }
+        cin >> N >> Q;
+
+        ////////////
+        reset();
+
+        //////////
 
 
-////////////////////////////////////////////////////////////////
-//출력
+        B.resize(Q + 1);
 
-    vector<int> rlt;
+        int r1, c1, r2, c2;
 
-    
-    for(turn=1; turn<=Q; turn++)
-    {
-        ans=0;
+        for (int i = 1; i <= Q; i++)
+        {
+            cin >> r1 >> c1 >> r2 >> c2;
 
-        step1();
-        step2();
-    
-        step3();
+            B[i].r1 = r1;
+            B[i].c1 = c1;
+            B[i].r2 = r2;
+            B[i].c2 = c2;
+        }
+
+        for (turn = 1; turn <= Q; turn++)
+        {
+            score = 0;
+
+            step1();
+            step2();
+            step3();
+            step4();
+
+            cout << score <<"\n";
+        }
+
         
-        rlt.push_back({ans});
-    }
+        //////////////////
 
-    for(int i=0; i<rlt.size(); i++)
-    {
-        cout << rlt[i]<<"\n";
-    }
-
-
-
-////////////////////////////////////////////////////////////////
-
+    
     return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
-
