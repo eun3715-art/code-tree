@@ -56,6 +56,9 @@ int M, t;
 
 int pr, pc;
 
+vector<pair<int, int>> path;
+vector<pair<int, int>> best_path;
+
 //함수///////////////////////////////////
 void reset_egg()
 {
@@ -75,7 +78,7 @@ void step1()
 {
     reset_egg();
 
-    for (int i = 1; i <=4; i++)
+    for (int i = 1; i <= 4; i++)
     {
         for (int j = 1; j <= 4; j++)
         {
@@ -122,11 +125,11 @@ int inrange(int r, int c)
 
 void move_one(int r, int c, int d)
 {
-    int init= board[r][c][d];
+    int init = board[r][c][d];
 
     for (int i = 0; i <= 7; i++)
     {
-        int newd = (d-1 + i) % 8+1;
+        int newd = (d - 1 + i) % 8 + 1;
         int newr = r + dr[newd];
         int newc = c + dc[newd];
 
@@ -189,66 +192,54 @@ int is_monster(int r, int c)
     return num;
 }
 
-tuple<int, int, int> find_opt_v()
+
+
+
+void dfs(int s, int r, int c, int &max_num)
 {
-    int max_num = -1;
-    tuple<int, int, int> max_t;
-
-
-    for (int i = 1; i <= 8; i+=2)
+    if (s == 3)
     {
-        int num = 0;
-        
-        int r = pr + dr[i];
-        int c = pc + dc[i];
+        int num=0;
+        reset_visited();
 
-        if (!inrange(r, c))
+        for (pair<int, int> p : path)
         {
-            continue;
-        }
-
-        num += is_monster(r, c);
-
-        for (int j = 1; j <= 8; j+=2)
-        {
-            int newr = r + dr[j];
-            int newc = c + dc[j];
-
-            if (!inrange(newr, newc))
+            if (visited[p.first][p.second] == 1)
             {
                 continue;
             }
 
-            int new_num = num + is_monster(newr, newc);
-            
-
-            for (int k = 1; k <= 8; k+=2)
-            {
-                int newnewr = newr + dr[k];
-                int newnewc = newc + dc[k];
-
-                if (!inrange(newnewr, newnewc))
-                {
-                    continue;
-                }
-
-                int new_new_num = new_num;
-
-                if (newnewr != r || newnewc != c)
-                {
-                    new_new_num += is_monster(newnewr, newnewc);
-                }
-
-                if (max_num < new_new_num)
-                {
-                    max_num = new_new_num;
-                    max_t = make_tuple(i, j, k);
-                }
-            }
+            visited[p.first][p.second] = 1;
+            num += is_monster(p.first, p.second);
         }
+
+        if (num > max_num)
+        {
+            best_path = path;
+            max_num = num;
+        }
+
+        return;
     }
 
-    return max_t;
+    for (int d = 1; d <= 8; d += 2)
+    {
+        int newr = r + dr[d];
+        int newc = c + dc[d];
+
+        if (!inrange(newr, newc))
+        {
+            continue;
+        }
+        
+        path.push_back({ newr,newc });
+
+        dfs(s + 1, newr, newc, max_num);
+
+        path.pop_back();
+    }
+
+    return;
 }
 
 void eat(int r, int c)
@@ -266,27 +257,27 @@ void eat(int r, int c)
 
 void step3()
 {
-    tuple<int, int, int> t = find_opt_v();
+    
+    path.clear();
+    best_path.clear();
 
-    int a = get<0>(t);
-    int b = get<1>(t);
-    int c = get<2>(t);
+    int max_num = -1e9;
+    dfs(0, pr, pc, max_num);
 
-    int newr = pr + dr[a];
-    int newc = pc + dc[a];
-    eat(newr, newc);
+    int n = 0;
 
+    for (pair<int, int> p : best_path)
+    {
+        n++;
 
-    newr += dr[b];
-    newc += dc[b];
-    eat(newr, newc);
+        eat(p.first, p.second);
 
-    newr += dr[c];
-    newc += dc[c];
-    eat(newr, newc);
-
-    pr = newr;
-    pc = newc;
+        if (n == 3)
+        {
+            pr = p.first;
+            pc = p.second;
+        }
+    }
 }
 
 
@@ -352,51 +343,51 @@ void cout_board()
 int main(int argc, char** argv)
 {
 
-        cin >> M >> t;
-        //초기화
+    cin >> M >> t;
+    //초기화
 
-        ////
+    ////
 
-        int r, c,d;
+    int r, c, d;
 
-        cin >> r >> c;
+    cin >> r >> c;
 
-        pr = r, pc = c;
+    pr = r, pc = c;
 
-        for (int i = 0; i < M; i++)
+    for (int i = 0; i < M; i++)
+    {
+        cin >> r >> c >> d;
+
+        board[r][c][d]++;
+    }
+
+    //출력
+
+    for (int i = 0; i < t; i++)
+    {
+        step1();
+        step2();
+        step3();
+        step4();
+        step5();
+    }
+
+    int ans = 0;
+
+    for (int i = 1; i <= 4; i++)
+    {
+        for (int j = 1; j <= 4; j++)
         {
-            cin >> r >> c >> d;
-
-            board[r][c][d]++;
-        }
-
-        //출력
-
-        for (int i = 0; i < t; i++)
-        {
-            step1();
-            step2();
-            step3();
-            step4();
-            step5();
-        }
-
-        int ans = 0;
-
-        for (int i = 1; i <= 4; i++)
-        {
-            for (int j = 1; j <= 4; j++)
+            for (int k = 1; k <= 8; k++)
             {
-                for (int k = 1; k <= 8; k++)
-                {
-                    ans+= board[i][j][k];
-                }
+                ans += board[i][j][k];
             }
         }
+    }
 
 
-        cout << ans;
+    cout << ans;
 
-    
+
     return 0;//정상종료시 반드시 0을 리턴해야합니다.
 }
